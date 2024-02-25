@@ -1,0 +1,19 @@
+name: sound
+
+packages:
+  - packages/**
+
+scripts:
+  analyze:
+    description: Analyze all packages.
+    run: dart analyze --fatal-infos
+    exec:
+      concurrency: 1
+
+  test:
+    description: Run Dart tests in all packages that have them.
+    run: dart test
+    exec:
+      concurrency: 1
+    packageFilters:
+      dirExists: test

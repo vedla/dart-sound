@@ -1,0 +1,21 @@
+# Dart / Flutter
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec_overrides.yaml
+doc/api/
+
+# Rust
+target/
+**/*.rs.bk
+
+# Melos
+.melos_tool/
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

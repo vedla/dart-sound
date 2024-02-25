@@ -1,0 +1,13 @@
+name: sound_workspace
+publish_to: none
+
+# Dart pub workspace root. Member packages set `resolution: workspace` and
+# share a single lockfile. Melos drives multi-package tooling on top of this.
+environment:
+  sdk: ^3.10.0
+
+workspace:
+  - packages/sound
+
+dev_dependencies:
+  melos: ^7.0.0
