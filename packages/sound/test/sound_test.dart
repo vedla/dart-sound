@@ -33,31 +33,36 @@ void main() {
   tearDown(() => Sound.reset());
 
   group('backend selection', () {
-    test('falls back to the silent backend by default', () {
-      expect(Sound.backend.name, 'silent');
+    // Probe priorities are kept well above the real defaults (silent at -1000,
+    // the FFI backend at 100) so these tests are deterministic regardless of
+    // whether the native library happens to be built on the dev host.
+    test('always registers the silent fallback', () {
+      expect(Sound.backends.map((b) => b.name), contains('silent'));
+      expect(Sound.backend.isAvailable, isTrue);
     });
 
     test('prefers the highest-priority available backend', () {
-      Sound.registerBackend(_ProbeBackend('low', priority: 1));
-      Sound.registerBackend(_ProbeBackend('high', priority: 10));
+      Sound.registerBackend(_ProbeBackend('low', priority: 5000));
+      Sound.registerBackend(_ProbeBackend('high', priority: 9000));
       expect(Sound.backend.name, 'high');
     });
 
     test('skips unavailable backends', () {
       Sound.registerBackend(
-          _ProbeBackend('unavailable', priority: 100, available: false));
-      Sound.registerBackend(_ProbeBackend('usable', priority: 5));
+          _ProbeBackend('unavailable', priority: 9999, available: false));
+      Sound.registerBackend(_ProbeBackend('usable', priority: 9000));
       expect(Sound.backend.name, 'usable');
     });
 
     test('re-selects when a higher-priority backend is registered later', () {
-      expect(Sound.backend.name, 'silent');
-      Sound.registerBackend(_ProbeBackend('better', priority: 50));
+      final first = Sound.backend.name;
+      Sound.registerBackend(_ProbeBackend('better', priority: 9000));
       expect(Sound.backend.name, 'better');
+      expect(first, isNot('better'));
     });
 
     test('makeActive pins a backend regardless of priority', () {
-      Sound.registerBackend(_ProbeBackend('high', priority: 100));
+      Sound.registerBackend(_ProbeBackend('high', priority: 9000));
       final low = _ProbeBackend('low', priority: 1);
       Sound.registerBackend(low, makeActive: true);
       expect(Sound.backend.name, 'low');

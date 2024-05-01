@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'backends/native/native_backend.dart';
 import 'backends/silent_backend.dart';
 import 'exceptions.dart';
 import 'playback.dart';
@@ -32,8 +33,11 @@ class Sound {
   static void _ensureDefaults() {
     if (_defaultsRegistered) return;
     _defaultsRegistered = true;
-    // The silent fallback guarantees the API never crashes for lack of a
-    // backend. Higher-priority real backends are registered ahead of it.
+    // Register the platform's native backend (FFI on native, none on web)
+    // ahead of the silent fallback, which guarantees the API never crashes
+    // for lack of a backend.
+    final native = createNativeBackend();
+    if (native != null) registerBackend(native);
     registerBackend(SilentBackend());
   }
 
