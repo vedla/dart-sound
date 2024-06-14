@@ -8,6 +8,8 @@ environment:
 
 workspace:
   - packages/sound
+  - packages/sound_flutter
+  - packages/sound_flutter/example
 
 dev_dependencies:
   melos: ^7.0.0

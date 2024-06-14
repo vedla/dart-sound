@@ -3,6 +3,11 @@ name: sound
 packages:
   - packages/**
 
+# The vendored cargokit build tooling ships its own Dart packages/examples;
+# they are not part of this monorepo's workspace.
+ignore:
+  - "packages/*/cargokit/**"
+
 scripts:
   analyze:
     description: Analyze all packages.
