@@ -7,4 +7,6 @@
 - FFI backend that plays WAV via the `sound_cli` Rust library; Linux
   playback over ALSA (PipeWire). Web-safe via conditional imports.
 - WebAudio backend for the browser (selected automatically on web).
+- Native decoding of WAV/MP3/OGG-Vorbis/FLAC via the pure-Rust `symphonia`
+  (no system dependencies); the browser decodes natively on web.
 - CLI example and a web example.

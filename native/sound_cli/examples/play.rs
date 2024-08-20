@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use hound::{SampleFormat, WavSpec, WavWriter};
 use sound_cli::{
-    sound_last_error, sound_play_wav_bytes, sound_player_free, sound_player_new, sound_voice_error,
+    sound_last_error, sound_play_bytes, sound_player_free, sound_player_new, sound_voice_error,
     sound_voice_state,
 };
 
@@ -46,7 +46,7 @@ fn main() {
             eprintln!("player init failed: {msg}");
             std::process::exit(1);
         }
-        let id = sound_play_wav_bytes(player, wav.as_ptr(), wav.len());
+        let id = sound_play_bytes(player, wav.as_ptr(), wav.len(), std::ptr::null());
         if id == 0 {
             let msg = CStr::from_ptr(sound_last_error()).to_string_lossy();
             eprintln!("play failed: {msg}");

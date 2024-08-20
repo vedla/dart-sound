@@ -17,8 +17,10 @@ SoundBackend? createNativeBackend() => FfiBackend();
 typedef _PlayerNewNative = Pointer<Void> Function();
 typedef _PlayerFreeNative = Void Function(Pointer<Void>);
 typedef _PlayerFree = void Function(Pointer<Void>);
-typedef _PlayBytesNative = Uint64 Function(Pointer<Void>, Pointer<Uint8>, Size);
-typedef _PlayBytes = int Function(Pointer<Void>, Pointer<Uint8>, int);
+typedef _PlayBytesNative = Uint64 Function(
+    Pointer<Void>, Pointer<Uint8>, Size, Pointer<Utf8>);
+typedef _PlayBytes = int Function(
+    Pointer<Void>, Pointer<Uint8>, int, Pointer<Utf8>);
 typedef _PlayFileNative = Uint64 Function(Pointer<Void>, Pointer<Utf8>);
 typedef _PlayFile = int Function(Pointer<Void>, Pointer<Utf8>);
 typedef _VoiceStateNative = Int32 Function(Pointer<Void>, Uint64);
@@ -93,9 +95,9 @@ class _Bindings {
         playerFree = lib
             .lookupFunction<_PlayerFreeNative, _PlayerFree>('sound_player_free'),
         playBytes =
-            lib.lookupFunction<_PlayBytesNative, _PlayBytes>('sound_play_wav_bytes'),
+            lib.lookupFunction<_PlayBytesNative, _PlayBytes>('sound_play_bytes'),
         playFile =
-            lib.lookupFunction<_PlayFileNative, _PlayFile>('sound_play_wav_file'),
+            lib.lookupFunction<_PlayFileNative, _PlayFile>('sound_play_file'),
         voiceState =
             lib.lookupFunction<_VoiceStateNative, _VoiceState>('sound_voice_state'),
         stop = lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_stop'),
@@ -219,15 +221,17 @@ class FfiPlayback implements Playback {
 
   int _start() {
     switch (_source) {
-      case BytesSource(:final bytes):
+      case BytesSource(:final bytes, :final format):
         final buf = malloc<Uint8>(bytes.length);
+        final cFormat = format == null ? nullptr : format.toNativeUtf8();
         try {
           buf.asTypedList(bytes.length).setAll(0, bytes);
           // The native side decodes synchronously before returning, so the
-          // buffer is safe to free immediately afterward.
-          return _b.playBytes(_player, buf, bytes.length);
+          // buffers are safe to free immediately afterward.
+          return _b.playBytes(_player, buf, bytes.length, cFormat);
         } finally {
           malloc.free(buf);
+          if (cFormat != nullptr) malloc.free(cFormat);
         }
       case FileSource(:final path):
         final cPath = path.toNativeUtf8();

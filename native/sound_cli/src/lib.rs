@@ -5,7 +5,7 @@
 //! id that can be polled, stopped, and freed. Concurrent voices are mixed by
 //! the system audio server (PipeWire/PulseAudio/dmix on Linux).
 
-mod wav;
+mod decode;
 
 #[cfg(target_os = "linux")]
 mod alsa;
@@ -18,7 +18,7 @@ use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
-use wav::DecodedAudio;
+use decode::DecodedAudio;
 
 // Voice state codes, mirrored by the Dart side.
 const STATE_PLAYING: u8 = 0;
@@ -193,15 +193,18 @@ fn with_player<'a>(player: *mut Player) -> Option<&'a Player> {
     }
 }
 
-/// Decodes WAV bytes and starts playback. Returns a voice id, or 0 on error.
+/// Decodes encoded audio bytes (WAV/MP3/OGG/FLAC, auto-detected) and starts
+/// playback. Returns a voice id, or 0 on error.
 ///
 /// # Safety
-/// `data` must point to `len` readable bytes.
+/// `data` must point to `len` readable bytes. `format` is an optional
+/// NUL-terminated extension hint (e.g. "mp3"); pass null to auto-detect.
 #[no_mangle]
-pub unsafe extern "C" fn sound_play_wav_bytes(
+pub unsafe extern "C" fn sound_play_bytes(
     player: *mut Player,
     data: *const u8,
     len: usize,
+    format: *const c_char,
 ) -> u64 {
     let Some(player) = with_player(player) else {
         return 0;
@@ -211,7 +214,12 @@ pub unsafe extern "C" fn sound_play_wav_bytes(
         return 0;
     }
     let bytes = std::slice::from_raw_parts(data, len);
-    match wav::decode_wav_bytes(bytes) {
+    let hint = if format.is_null() {
+        None
+    } else {
+        CStr::from_ptr(format).to_str().ok()
+    };
+    match decode::decode_bytes(bytes, hint) {
         Ok(audio) => player.spawn(audio),
         Err(e) => {
             set_last_error(e);
@@ -220,12 +228,13 @@ pub unsafe extern "C" fn sound_play_wav_bytes(
     }
 }
 
-/// Decodes a WAV file and starts playback. Returns a voice id, or 0 on error.
+/// Decodes an audio file (format auto-detected) and starts playback. Returns a
+/// voice id, or 0 on error.
 ///
 /// # Safety
 /// `path` must be a valid NUL-terminated C string.
 #[no_mangle]
-pub unsafe extern "C" fn sound_play_wav_file(player: *mut Player, path: *const c_char) -> u64 {
+pub unsafe extern "C" fn sound_play_file(player: *mut Player, path: *const c_char) -> u64 {
     let Some(player) = with_player(player) else {
         return 0;
     };
@@ -240,7 +249,7 @@ pub unsafe extern "C" fn sound_play_wav_file(player: *mut Player, path: *const c
             return 0;
         }
     };
-    match wav::decode_wav_file(path) {
+    match decode::decode_file(path) {
         Ok(audio) => player.spawn(audio),
         Err(e) => {
             set_last_error(e);
@@ -351,7 +360,7 @@ mod tests {
     #[test]
     fn decodes_wav_bytes() {
         let bytes = sine_wav();
-        let audio = wav::decode_wav_bytes(&bytes).unwrap();
+        let audio = decode::decode_bytes(&bytes, Some("wav")).unwrap();
         assert_eq!(audio.channels, 1);
         assert_eq!(audio.rate, 44_100);
         assert_eq!(audio.samples.len(), 4_410);
