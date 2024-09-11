@@ -14,7 +14,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
-use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
@@ -39,6 +39,8 @@ struct Voice {
     stop: Arc<std::sync::atomic::AtomicBool>,
     state: Arc<AtomicU8>,
     error: Arc<Mutex<Option<String>>>,
+    // Linear gain stored as f32 bits; read by the playback thread per chunk.
+    volume: Arc<AtomicU32>,
     handle: Option<JoinHandle<()>>,
 }
 
@@ -65,8 +67,15 @@ impl Player {
         let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let state = Arc::new(AtomicU8::new(STATE_PLAYING));
         let error = Arc::new(Mutex::new(None));
+        let volume = Arc::new(AtomicU32::new(1.0f32.to_bits()));
 
-        let handle = self.start_thread(audio, stop.clone(), state.clone(), error.clone());
+        let handle = self.start_thread(
+            audio,
+            stop.clone(),
+            state.clone(),
+            error.clone(),
+            volume.clone(),
+        );
 
         self.voices.lock().unwrap().insert(
             id,
@@ -74,6 +83,7 @@ impl Player {
                 stop,
                 state,
                 error,
+                volume,
                 handle: Some(handle),
             },
         );
@@ -87,10 +97,11 @@ impl Player {
         stop: Arc<std::sync::atomic::AtomicBool>,
         state: Arc<AtomicU8>,
         error: Arc<Mutex<Option<String>>>,
+        volume: Arc<AtomicU32>,
     ) -> JoinHandle<()> {
         let alsa = self.alsa.clone();
         std::thread::spawn(move || {
-            play_alsa(&alsa, audio, &stop, &state, &error);
+            play_alsa(&alsa, audio, &stop, &state, &error, &volume);
         })
     }
 
@@ -101,6 +112,7 @@ impl Player {
         _stop: Arc<std::sync::atomic::AtomicBool>,
         state: Arc<AtomicU8>,
         error: Arc<Mutex<Option<String>>>,
+        _volume: Arc<AtomicU32>,
     ) -> JoinHandle<()> {
         std::thread::spawn(move || {
             *error.lock().unwrap() =
@@ -117,6 +129,7 @@ fn play_alsa(
     stop: &std::sync::atomic::AtomicBool,
     state: &AtomicU8,
     error: &Mutex<Option<String>>,
+    volume: &AtomicU32,
 ) {
     let pcm = match alsa::PcmPlayback::open(alsa, audio.channels, audio.rate) {
         Ok(p) => p,
@@ -129,6 +142,7 @@ fn play_alsa(
 
     // ~2048 frames per write keeps stop latency under ~50 ms at 44.1 kHz.
     let chunk = audio.channels as usize * 2048;
+    let mut scaled: Vec<i16> = Vec::new();
     let mut i = 0;
     while i < audio.samples.len() {
         if stop.load(Ordering::SeqCst) {
@@ -136,7 +150,21 @@ fn play_alsa(
             return;
         }
         let end = (i + chunk).min(audio.samples.len());
-        if let Err(e) = pcm.write(&audio.samples[i..end]) {
+        let slice = &audio.samples[i..end];
+        // Apply linear gain unless it is effectively unity.
+        let gain = f32::from_bits(volume.load(Ordering::Relaxed));
+        let to_write: &[i16] = if (gain - 1.0).abs() < 1e-4 {
+            slice
+        } else {
+            scaled.clear();
+            scaled.extend(
+                slice
+                    .iter()
+                    .map(|&s| (s as f32 * gain).clamp(i16::MIN as f32, i16::MAX as f32) as i16),
+            );
+            &scaled
+        };
+        if let Err(e) = pcm.write(to_write) {
             *error.lock().unwrap() = Some(e);
             state.store(STATE_ERROR, Ordering::SeqCst);
             return;
@@ -282,6 +310,23 @@ pub extern "C" fn sound_stop(player: *mut Player, id: u64) -> c_int {
     match voices.get(&id) {
         Some(v) => {
             v.stop.store(true, Ordering::SeqCst);
+            0
+        }
+        None => -1,
+    }
+}
+
+/// Sets a voice's linear volume (1.0 = original). Values above 1.0 amplify and
+/// are clamped per-sample. Returns 0 on success, -1 if the id is unknown.
+#[no_mangle]
+pub extern "C" fn sound_set_volume(player: *mut Player, id: u64, volume: f32) -> c_int {
+    let Some(player) = with_player(player) else {
+        return -1;
+    };
+    let voices = player.voices.lock().unwrap();
+    match voices.get(&id) {
+        Some(v) => {
+            v.volume.store(volume.max(0.0).to_bits(), Ordering::Relaxed);
             0
         }
         None => -1,

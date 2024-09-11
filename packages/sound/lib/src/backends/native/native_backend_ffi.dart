@@ -27,6 +27,8 @@ typedef _VoiceStateNative = Int32 Function(Pointer<Void>, Uint64);
 typedef _VoiceState = int Function(Pointer<Void>, int);
 typedef _VoiceOpNative = Int32 Function(Pointer<Void>, Uint64);
 typedef _VoiceOp = int Function(Pointer<Void>, int);
+typedef _SetVolumeNative = Int32 Function(Pointer<Void>, Uint64, Float);
+typedef _SetVolume = int Function(Pointer<Void>, int, double);
 typedef _VoiceErrorNative = Pointer<Utf8> Function(Pointer<Void>, Uint64);
 typedef _VoiceError = Pointer<Utf8> Function(Pointer<Void>, int);
 typedef _LastErrorNative = Pointer<Utf8> Function();
@@ -101,6 +103,8 @@ class _Bindings {
         voiceState =
             lib.lookupFunction<_VoiceStateNative, _VoiceState>('sound_voice_state'),
         stop = lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_stop'),
+        setVolume =
+            lib.lookupFunction<_SetVolumeNative, _SetVolume>('sound_set_volume'),
         voiceFree =
             lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_voice_free'),
         voiceError =
@@ -114,6 +118,7 @@ class _Bindings {
   final _PlayFile playFile;
   final _VoiceState voiceState;
   final _VoiceOp stop;
+  final _SetVolume setVolume;
   final _VoiceOp voiceFree;
   final _VoiceError voiceError;
   final _LastError lastError;
@@ -166,9 +171,9 @@ class FfiBackend extends SoundBackend {
   }
 
   @override
-  Future<Playback> load(SoundSource source) async {
+  Future<Playback> load(SoundSource source, {double volume = 1.0}) async {
     if (_player == nullptr) await initialize();
-    return FfiPlayback._(this, source);
+    return FfiPlayback._(this, source, volume);
   }
 
   @override
@@ -183,11 +188,12 @@ class FfiBackend extends SoundBackend {
 /// A single FFI-backed voice. Created idle; [play] starts a native voice and
 /// polls its state to resolve [onComplete].
 class FfiPlayback implements Playback {
-  FfiPlayback._(this._backend, this._source);
+  FfiPlayback._(this._backend, this._source, this._volume);
 
   final FfiBackend _backend;
   final SoundSource _source;
 
+  double _volume;
   int _voiceId = 0;
   PlaybackState _state = PlaybackState.idle;
   Timer? _poll;
@@ -215,6 +221,7 @@ class FfiPlayback implements Playback {
       _state = PlaybackState.idle;
       throw PlaybackException('playback failed: ${_backend._lastError()}');
     }
+    if (_volume != 1.0) _b.setVolume(_player, _voiceId, _volume);
     _state = PlaybackState.playing;
     _poll = Timer.periodic(const Duration(milliseconds: 50), (_) => _checkState());
   }
@@ -281,6 +288,12 @@ class FfiPlayback implements Playback {
     }
     _poll?.cancel();
     _poll = null;
+  }
+
+  @override
+  Future<void> setVolume(double volume) async {
+    _volume = volume;
+    if (_voiceId != 0) _b.setVolume(_player, _voiceId, volume);
   }
 
   void _freeVoice() {

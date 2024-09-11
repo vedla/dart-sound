@@ -91,29 +91,32 @@ class Sound {
   }
 
   /// Loads [source] with the active backend, returning a controllable handle.
-  static Future<Playback> load(SoundSource source) async {
+  ///
+  /// [volume] sets the initial linear volume (`1.0` = original).
+  static Future<Playback> load(SoundSource source, {double volume = 1.0}) async {
     final b = backend;
     if (!_initialized.contains(b)) {
       await b.initialize();
       _initialized.add(b);
     }
-    return b.load(source);
+    return b.load(source, volume: volume);
   }
 
   /// Loads and immediately starts [source].
-  static Future<Playback> play(SoundSource source) async {
-    final playback = await load(source);
+  static Future<Playback> play(SoundSource source, {double volume = 1.0}) async {
+    final playback = await load(source, volume: volume);
     await playback.play();
     return playback;
   }
 
   /// Convenience for [play] with a [FileSource].
-  static Future<Playback> playFile(String path) =>
-      play(SoundSource.file(path));
+  static Future<Playback> playFile(String path, {double volume = 1.0}) =>
+      play(SoundSource.file(path), volume: volume);
 
   /// Convenience for [play] with a [BytesSource].
-  static Future<Playback> playBytes(Uint8List bytes, {String? format}) =>
-      play(SoundSource.bytes(bytes, format: format));
+  static Future<Playback> playBytes(Uint8List bytes,
+          {String? format, double volume = 1.0}) =>
+      play(SoundSource.bytes(bytes, format: format), volume: volume);
 
   /// Disposes the active backend and clears selection/registry.
   ///

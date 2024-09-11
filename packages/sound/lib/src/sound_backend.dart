@@ -29,9 +29,10 @@ abstract class SoundBackend {
 
   /// Loads [source] and returns a controllable [Playback].
   ///
-  /// Throws [UnsupportedSourceException] if the source kind/format is not
-  /// supported by this backend.
-  Future<Playback> load(SoundSource source);
+  /// [volume] sets the initial linear volume (`1.0` = original). Throws
+  /// [UnsupportedSourceException] if the source kind/format is not supported by
+  /// this backend.
+  Future<Playback> load(SoundSource source, {double volume = 1.0});
 
   /// Releases any global resources held by the backend.
   Future<void> dispose();

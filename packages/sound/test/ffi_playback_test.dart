@@ -87,6 +87,19 @@ void main() {
       await playback.dispose();
     });
 
+    test('plays at reduced volume to completion', () async {
+      Sound.registerBackend(FfiBackend(), makeActive: true);
+      final playback = await Sound.playBytes(
+        buildSineWav(milliseconds: 120),
+        format: 'wav',
+        volume: 0.25,
+      );
+      await playback.setVolume(0.5);
+      await playback.onComplete.timeout(const Duration(seconds: 5));
+      expect(playback.state, PlaybackState.completed);
+      await playback.dispose();
+    });
+
     test('stop ends playback early', () async {
       Sound.registerBackend(FfiBackend(), makeActive: true);
       final playback = await Sound.playBytes(

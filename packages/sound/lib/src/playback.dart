@@ -33,6 +33,10 @@ abstract class Playback {
   /// Stops playback if it is running. Safe to call when already stopped.
   Future<void> stop();
 
+  /// Sets the linear volume, where `1.0` is the original level. Values above
+  /// `1.0` amplify (and may clip); `0.0` is silence.
+  Future<void> setVolume(double volume);
+
   /// Completes when playback reaches the end on its own.
   ///
   /// Completes immediately if the sound has already finished, and never
