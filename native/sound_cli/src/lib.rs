@@ -41,6 +41,8 @@ struct Voice {
     error: Arc<Mutex<Option<String>>>,
     // Linear gain stored as f32 bits; read by the playback thread per chunk.
     volume: Arc<AtomicU32>,
+    // When set, the playback thread restarts from the beginning at end of audio.
+    looping: Arc<std::sync::atomic::AtomicBool>,
     handle: Option<JoinHandle<()>>,
 }
 
@@ -62,12 +64,13 @@ impl Player {
         })
     }
 
-    fn spawn(&self, audio: DecodedAudio) -> u64 {
+    fn spawn(&self, audio: DecodedAudio, looping: bool) -> u64 {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
         let state = Arc::new(AtomicU8::new(STATE_PLAYING));
         let error = Arc::new(Mutex::new(None));
         let volume = Arc::new(AtomicU32::new(1.0f32.to_bits()));
+        let looping = Arc::new(std::sync::atomic::AtomicBool::new(looping));
 
         let handle = self.start_thread(
             audio,
@@ -75,6 +78,7 @@ impl Player {
             state.clone(),
             error.clone(),
             volume.clone(),
+            looping.clone(),
         );
 
         self.voices.lock().unwrap().insert(
@@ -84,6 +88,7 @@ impl Player {
                 state,
                 error,
                 volume,
+                looping,
                 handle: Some(handle),
             },
         );
@@ -98,10 +103,11 @@ impl Player {
         state: Arc<AtomicU8>,
         error: Arc<Mutex<Option<String>>>,
         volume: Arc<AtomicU32>,
+        looping: Arc<std::sync::atomic::AtomicBool>,
     ) -> JoinHandle<()> {
         let alsa = self.alsa.clone();
         std::thread::spawn(move || {
-            play_alsa(&alsa, audio, &stop, &state, &error, &volume);
+            play_alsa(&alsa, audio, &stop, &state, &error, &volume, &looping);
         })
     }
 
@@ -113,6 +119,7 @@ impl Player {
         state: Arc<AtomicU8>,
         error: Arc<Mutex<Option<String>>>,
         _volume: Arc<AtomicU32>,
+        _looping: Arc<std::sync::atomic::AtomicBool>,
     ) -> JoinHandle<()> {
         std::thread::spawn(move || {
             *error.lock().unwrap() =
@@ -130,6 +137,7 @@ fn play_alsa(
     state: &AtomicU8,
     error: &Mutex<Option<String>>,
     volume: &AtomicU32,
+    looping: &std::sync::atomic::AtomicBool,
 ) {
     let pcm = match alsa::PcmPlayback::open(alsa, audio.channels, audio.rate) {
         Ok(p) => p,
@@ -170,6 +178,10 @@ fn play_alsa(
             return;
         }
         i = end;
+        // Loop back to the start instead of finishing when looping is on.
+        if i >= audio.samples.len() && looping.load(Ordering::SeqCst) {
+            i = 0;
+        }
     }
     pcm.drain();
     let final_state = if stop.load(Ordering::SeqCst) {
@@ -227,12 +239,14 @@ fn with_player<'a>(player: *mut Player) -> Option<&'a Player> {
 /// # Safety
 /// `data` must point to `len` readable bytes. `format` is an optional
 /// NUL-terminated extension hint (e.g. "mp3"); pass null to auto-detect.
+/// `looping` is nonzero to repeat from the start at end of audio.
 #[no_mangle]
 pub unsafe extern "C" fn sound_play_bytes(
     player: *mut Player,
     data: *const u8,
     len: usize,
     format: *const c_char,
+    looping: c_int,
 ) -> u64 {
     let Some(player) = with_player(player) else {
         return 0;
@@ -248,7 +262,7 @@ pub unsafe extern "C" fn sound_play_bytes(
         CStr::from_ptr(format).to_str().ok()
     };
     match decode::decode_bytes(bytes, hint) {
-        Ok(audio) => player.spawn(audio),
+        Ok(audio) => player.spawn(audio, looping != 0),
         Err(e) => {
             set_last_error(e);
             0
@@ -260,9 +274,14 @@ pub unsafe extern "C" fn sound_play_bytes(
 /// voice id, or 0 on error.
 ///
 /// # Safety
-/// `path` must be a valid NUL-terminated C string.
+/// `path` must be a valid NUL-terminated C string. `looping` is nonzero to
+/// repeat from the start at end of audio.
 #[no_mangle]
-pub unsafe extern "C" fn sound_play_file(player: *mut Player, path: *const c_char) -> u64 {
+pub unsafe extern "C" fn sound_play_file(
+    player: *mut Player,
+    path: *const c_char,
+    looping: c_int,
+) -> u64 {
     let Some(player) = with_player(player) else {
         return 0;
     };
@@ -278,7 +297,7 @@ pub unsafe extern "C" fn sound_play_file(player: *mut Player, path: *const c_cha
         }
     };
     match decode::decode_file(path) {
-        Ok(audio) => player.spawn(audio),
+        Ok(audio) => player.spawn(audio, looping != 0),
         Err(e) => {
             set_last_error(e);
             0
@@ -327,6 +346,23 @@ pub extern "C" fn sound_set_volume(player: *mut Player, id: u64, volume: f32) ->
     match voices.get(&id) {
         Some(v) => {
             v.volume.store(volume.max(0.0).to_bits(), Ordering::Relaxed);
+            0
+        }
+        None => -1,
+    }
+}
+
+/// Turns looping on (nonzero) or off for a voice. Turning it off lets the
+/// current pass finish and then completes. Returns 0 on success, -1 if unknown.
+#[no_mangle]
+pub extern "C" fn sound_set_loop(player: *mut Player, id: u64, looping: c_int) -> c_int {
+    let Some(player) = with_player(player) else {
+        return -1;
+    };
+    let voices = player.voices.lock().unwrap();
+    match voices.get(&id) {
+        Some(v) => {
+            v.looping.store(looping != 0, Ordering::SeqCst);
             0
         }
         None => -1,

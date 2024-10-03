@@ -9,4 +9,5 @@
 - WebAudio backend for the browser (selected automatically on web).
 - Native decoding of WAV/MP3/OGG-Vorbis/FLAC via the pure-Rust `symphonia`
   (no system dependencies); the browser decodes natively on web.
+- Per-voice volume (`setVolume`, `volume:`) and looping (`setLooping`, `loop:`).
 - CLI example and a web example.

@@ -46,7 +46,7 @@ fn main() {
             eprintln!("player init failed: {msg}");
             std::process::exit(1);
         }
-        let id = sound_play_bytes(player, wav.as_ptr(), wav.len(), std::ptr::null());
+        let id = sound_play_bytes(player, wav.as_ptr(), wav.len(), std::ptr::null(), 0);
         if id == 0 {
             let msg = CStr::from_ptr(sound_last_error()).to_string_lossy();
             eprintln!("play failed: {msg}");

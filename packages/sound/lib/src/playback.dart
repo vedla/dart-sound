@@ -37,6 +37,10 @@ abstract class Playback {
   /// `1.0` amplify (and may clip); `0.0` is silence.
   Future<void> setVolume(double volume);
 
+  /// Enables or disables looping. Turning looping off lets the current pass
+  /// finish and then completes naturally.
+  Future<void> setLooping(bool looping);
+
   /// Completes when playback reaches the end on its own.
   ///
   /// Completes immediately if the sound has already finished, and never

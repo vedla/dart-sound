@@ -35,7 +35,8 @@ class WebAudioBackend extends SoundBackend {
   }
 
   @override
-  Future<Playback> load(SoundSource source, {double volume = 1.0}) async {
+  Future<Playback> load(SoundSource source,
+      {double volume = 1.0, bool loop = false}) async {
     await initialize();
     final bytes = switch (source) {
       BytesSource(:final bytes) => bytes,
@@ -45,7 +46,7 @@ class WebAudioBackend extends SoundBackend {
     // decodeAudioData detaches its input, so hand it a private copy.
     final copy = Uint8List.fromList(bytes);
     final buffer = await _context!.decodeAudioData(copy.buffer.toJS).toDart;
-    return WebAudioPlayback(_context!, buffer, volume);
+    return WebAudioPlayback(_context!, buffer, volume, loop);
   }
 
   @override
@@ -57,7 +58,7 @@ class WebAudioBackend extends SoundBackend {
 
 /// A single WebAudio voice backed by a decoded [web.AudioBuffer].
 class WebAudioPlayback implements Playback {
-  WebAudioPlayback(this._context, this._buffer, double volume)
+  WebAudioPlayback(this._context, this._buffer, double volume, this._looping)
       : _gain = _context.createGain() {
     _gain.gain.value = volume;
     _gain.connect(_context.destination);
@@ -66,6 +67,7 @@ class WebAudioPlayback implements Playback {
   final web.AudioContext _context;
   final web.AudioBuffer _buffer;
   final web.GainNode _gain;
+  bool _looping;
 
   web.AudioBufferSourceNode? _source;
   PlaybackState _state = PlaybackState.idle;
@@ -86,7 +88,9 @@ class WebAudioPlayback implements Playback {
     _stopSource();
     _completer = Completer<void>();
 
-    final source = web.AudioBufferSourceNode(_context)..buffer = _buffer;
+    final source = web.AudioBufferSourceNode(_context)
+      ..buffer = _buffer
+      ..loop = _looping;
     source.connect(_gain);
     source.onended = (web.Event _) {
       if (_state == PlaybackState.playing) {
@@ -121,6 +125,12 @@ class WebAudioPlayback implements Playback {
   @override
   Future<void> setVolume(double volume) async {
     _gain.gain.value = volume;
+  }
+
+  @override
+  Future<void> setLooping(bool looping) async {
+    _looping = looping;
+    _source?.loop = looping;
   }
 
   @override

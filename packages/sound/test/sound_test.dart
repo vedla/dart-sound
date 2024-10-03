@@ -23,7 +23,8 @@ class _ProbeBackend extends SoundBackend {
   Future<void> initialize() async => initializeCalls++;
 
   @override
-  Future<Playback> load(SoundSource source, {double volume = 1.0}) async =>
+  Future<Playback> load(SoundSource source,
+          {double volume = 1.0, bool loop = false}) async =>
       SilentPlayback(Duration.zero);
 
   @override

@@ -100,6 +100,21 @@ void main() {
       await playback.dispose();
     });
 
+    test('looping keeps playing past the end until stopped', () async {
+      Sound.registerBackend(FfiBackend(), makeActive: true);
+      final playback = await Sound.playBytes(
+        buildSineWav(milliseconds: 80),
+        format: 'wav',
+        loop: true,
+      );
+      // Well past one pass; a non-looping voice would have completed by now.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(playback.state, PlaybackState.playing);
+      await playback.stop();
+      expect(playback.state, PlaybackState.stopped);
+      await playback.dispose();
+    });
+
     test('stop ends playback early', () async {
       Sound.registerBackend(FfiBackend(), makeActive: true);
       final playback = await Sound.playBytes(

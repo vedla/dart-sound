@@ -18,17 +18,19 @@ typedef _PlayerNewNative = Pointer<Void> Function();
 typedef _PlayerFreeNative = Void Function(Pointer<Void>);
 typedef _PlayerFree = void Function(Pointer<Void>);
 typedef _PlayBytesNative = Uint64 Function(
-    Pointer<Void>, Pointer<Uint8>, Size, Pointer<Utf8>);
+    Pointer<Void>, Pointer<Uint8>, Size, Pointer<Utf8>, Int32);
 typedef _PlayBytes = int Function(
-    Pointer<Void>, Pointer<Uint8>, int, Pointer<Utf8>);
-typedef _PlayFileNative = Uint64 Function(Pointer<Void>, Pointer<Utf8>);
-typedef _PlayFile = int Function(Pointer<Void>, Pointer<Utf8>);
+    Pointer<Void>, Pointer<Uint8>, int, Pointer<Utf8>, int);
+typedef _PlayFileNative = Uint64 Function(Pointer<Void>, Pointer<Utf8>, Int32);
+typedef _PlayFile = int Function(Pointer<Void>, Pointer<Utf8>, int);
 typedef _VoiceStateNative = Int32 Function(Pointer<Void>, Uint64);
 typedef _VoiceState = int Function(Pointer<Void>, int);
 typedef _VoiceOpNative = Int32 Function(Pointer<Void>, Uint64);
 typedef _VoiceOp = int Function(Pointer<Void>, int);
 typedef _SetVolumeNative = Int32 Function(Pointer<Void>, Uint64, Float);
 typedef _SetVolume = int Function(Pointer<Void>, int, double);
+typedef _SetLoopNative = Int32 Function(Pointer<Void>, Uint64, Int32);
+typedef _SetLoop = int Function(Pointer<Void>, int, int);
 typedef _VoiceErrorNative = Pointer<Utf8> Function(Pointer<Void>, Uint64);
 typedef _VoiceError = Pointer<Utf8> Function(Pointer<Void>, int);
 typedef _LastErrorNative = Pointer<Utf8> Function();
@@ -105,6 +107,7 @@ class _Bindings {
         stop = lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_stop'),
         setVolume =
             lib.lookupFunction<_SetVolumeNative, _SetVolume>('sound_set_volume'),
+        setLoop = lib.lookupFunction<_SetLoopNative, _SetLoop>('sound_set_loop'),
         voiceFree =
             lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_voice_free'),
         voiceError =
@@ -119,6 +122,7 @@ class _Bindings {
   final _VoiceState voiceState;
   final _VoiceOp stop;
   final _SetVolume setVolume;
+  final _SetLoop setLoop;
   final _VoiceOp voiceFree;
   final _VoiceError voiceError;
   final _LastError lastError;
@@ -171,9 +175,10 @@ class FfiBackend extends SoundBackend {
   }
 
   @override
-  Future<Playback> load(SoundSource source, {double volume = 1.0}) async {
+  Future<Playback> load(SoundSource source,
+      {double volume = 1.0, bool loop = false}) async {
     if (_player == nullptr) await initialize();
-    return FfiPlayback._(this, source, volume);
+    return FfiPlayback._(this, source, volume, loop);
   }
 
   @override
@@ -188,12 +193,13 @@ class FfiBackend extends SoundBackend {
 /// A single FFI-backed voice. Created idle; [play] starts a native voice and
 /// polls its state to resolve [onComplete].
 class FfiPlayback implements Playback {
-  FfiPlayback._(this._backend, this._source, this._volume);
+  FfiPlayback._(this._backend, this._source, this._volume, this._looping);
 
   final FfiBackend _backend;
   final SoundSource _source;
 
   double _volume;
+  bool _looping;
   int _voiceId = 0;
   PlaybackState _state = PlaybackState.idle;
   Timer? _poll;
@@ -227,6 +233,7 @@ class FfiPlayback implements Playback {
   }
 
   int _start() {
+    final loopFlag = _looping ? 1 : 0;
     switch (_source) {
       case BytesSource(:final bytes, :final format):
         final buf = malloc<Uint8>(bytes.length);
@@ -235,7 +242,7 @@ class FfiPlayback implements Playback {
           buf.asTypedList(bytes.length).setAll(0, bytes);
           // The native side decodes synchronously before returning, so the
           // buffers are safe to free immediately afterward.
-          return _b.playBytes(_player, buf, bytes.length, cFormat);
+          return _b.playBytes(_player, buf, bytes.length, cFormat, loopFlag);
         } finally {
           malloc.free(buf);
           if (cFormat != nullptr) malloc.free(cFormat);
@@ -243,7 +250,7 @@ class FfiPlayback implements Playback {
       case FileSource(:final path):
         final cPath = path.toNativeUtf8();
         try {
-          return _b.playFile(_player, cPath);
+          return _b.playFile(_player, cPath, loopFlag);
         } finally {
           malloc.free(cPath);
         }
@@ -294,6 +301,12 @@ class FfiPlayback implements Playback {
   Future<void> setVolume(double volume) async {
     _volume = volume;
     if (_voiceId != 0) _b.setVolume(_player, _voiceId, volume);
+  }
+
+  @override
+  Future<void> setLooping(bool looping) async {
+    _looping = looping;
+    if (_voiceId != 0) _b.setLoop(_player, _voiceId, looping ? 1 : 0);
   }
 
   void _freeVoice() {
