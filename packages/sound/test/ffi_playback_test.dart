@@ -115,6 +115,26 @@ void main() {
       await playback.dispose();
     });
 
+    test('plays multiple voices concurrently to completion', () async {
+      Sound.registerBackend(FfiBackend(), makeActive: true);
+      final voices = await Future.wait([
+        Sound.playBytes(buildSineWav(milliseconds: 150, freq: 330),
+            format: 'wav'),
+        Sound.playBytes(buildSineWav(milliseconds: 150, freq: 440),
+            format: 'wav'),
+        Sound.playBytes(buildSineWav(milliseconds: 150, freq: 550),
+            format: 'wav'),
+      ]);
+      expect(voices.every((v) => v.isPlaying), isTrue);
+      await Future.wait(
+        voices.map((v) => v.onComplete.timeout(const Duration(seconds: 5))),
+      );
+      expect(voices.every((v) => v.state == PlaybackState.completed), isTrue);
+      for (final v in voices) {
+        await v.dispose();
+      }
+    });
+
     test('stop ends playback early', () async {
       Sound.registerBackend(FfiBackend(), makeActive: true);
       final playback = await Sound.playBytes(
