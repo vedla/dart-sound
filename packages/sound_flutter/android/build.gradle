@@ -43,7 +43,8 @@ android {
     }
 
     defaultConfig {
-        minSdk = 24
+        // AAudio (used by sound_cli for output) requires API 26+.
+        minSdk = 26
     }
 }
 

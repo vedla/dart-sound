@@ -162,6 +162,16 @@ impl<'a> PcmPlayback<'a> {
     }
 }
 
+impl crate::PcmSink for PcmPlayback<'_> {
+    fn write(&self, samples: &[i16]) -> Result<(), String> {
+        PcmPlayback::write(self, samples).map(|_| ())
+    }
+
+    fn drain(&self) {
+        PcmPlayback::drain(self)
+    }
+}
+
 impl Drop for PcmPlayback<'_> {
     fn drop(&mut self) {
         unsafe {

@@ -10,6 +10,17 @@ mod decode;
 #[cfg(target_os = "linux")]
 mod alsa;
 
+#[cfg(target_os = "android")]
+mod aaudio;
+
+/// A platform audio output that accepts interleaved S16LE frames.
+pub(crate) trait PcmSink {
+    /// Writes one interleaved chunk, blocking until accepted.
+    fn write(&self, samples: &[i16]) -> Result<(), String>;
+    /// Blocks until buffered audio has finished playing.
+    fn drain(&self);
+}
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
@@ -52,6 +63,8 @@ pub struct Player {
     next_id: AtomicU64,
     #[cfg(target_os = "linux")]
     alsa: Arc<alsa::Alsa>,
+    #[cfg(target_os = "android")]
+    aaudio: Arc<aaudio::Aaudio>,
 }
 
 impl Player {
@@ -61,6 +74,8 @@ impl Player {
             next_id: AtomicU64::new(1),
             #[cfg(target_os = "linux")]
             alsa: Arc::new(alsa::Alsa::load()?),
+            #[cfg(target_os = "android")]
+            aaudio: Arc::new(aaudio::Aaudio::load()?),
         })
     }
 
@@ -107,11 +122,29 @@ impl Player {
     ) -> JoinHandle<()> {
         let alsa = self.alsa.clone();
         std::thread::spawn(move || {
-            play_alsa(&alsa, audio, &stop, &state, &error, &volume, &looping);
+            let sink = alsa::PcmPlayback::open(&alsa, audio.channels, audio.rate);
+            run_voice(sink, audio, &stop, &state, &error, &volume, &looping);
         })
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "android")]
+    fn start_thread(
+        &self,
+        audio: DecodedAudio,
+        stop: Arc<std::sync::atomic::AtomicBool>,
+        state: Arc<AtomicU8>,
+        error: Arc<Mutex<Option<String>>>,
+        volume: Arc<AtomicU32>,
+        looping: Arc<std::sync::atomic::AtomicBool>,
+    ) -> JoinHandle<()> {
+        let aaudio = self.aaudio.clone();
+        std::thread::spawn(move || {
+            let sink = aaudio::AaudioPlayback::open(&aaudio, audio.channels, audio.rate);
+            run_voice(sink, audio, &stop, &state, &error, &volume, &looping);
+        })
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "android")))]
     fn start_thread(
         &self,
         _audio: DecodedAudio,
@@ -129,9 +162,10 @@ impl Player {
     }
 }
 
-#[cfg(target_os = "linux")]
-fn play_alsa(
-    alsa: &alsa::Alsa,
+/// Opens the result of a platform sink and, on success, runs the playback loop.
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn run_voice<S: PcmSink>(
+    sink: Result<S, String>,
     audio: DecodedAudio,
     stop: &std::sync::atomic::AtomicBool,
     state: &AtomicU8,
@@ -139,15 +173,29 @@ fn play_alsa(
     volume: &AtomicU32,
     looping: &std::sync::atomic::AtomicBool,
 ) {
-    let pcm = match alsa::PcmPlayback::open(alsa, audio.channels, audio.rate) {
-        Ok(p) => p,
+    let sink = match sink {
+        Ok(s) => s,
         Err(e) => {
             *error.lock().unwrap() = Some(e);
             state.store(STATE_ERROR, Ordering::SeqCst);
             return;
         }
     };
+    play_pcm(&sink, audio, stop, state, error, volume, looping);
+}
 
+/// Platform-independent playback loop: chunks the samples, applies gain, honors
+/// stop/loop, and drains at the end.
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn play_pcm<S: PcmSink>(
+    pcm: &S,
+    audio: DecodedAudio,
+    stop: &std::sync::atomic::AtomicBool,
+    state: &AtomicU8,
+    error: &Mutex<Option<String>>,
+    volume: &AtomicU32,
+    looping: &std::sync::atomic::AtomicBool,
+) {
     // ~2048 frames per write keeps stop latency under ~50 ms at 44.1 kHz.
     let chunk = audio.channels as usize * 2048;
     let mut scaled: Vec<i16> = Vec::new();
