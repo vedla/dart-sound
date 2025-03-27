@@ -25,7 +25,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
-use std::sync::atomic::{AtomicU32, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU32, AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
@@ -36,6 +36,10 @@ const STATE_PLAYING: u8 = 0;
 const STATE_COMPLETED: u8 = 1;
 const STATE_STOPPED: u8 = 2;
 const STATE_ERROR: u8 = 3;
+const STATE_PAUSED: u8 = 4;
+
+// Sentinel for "no seek pending" in the seek_request slot.
+const NO_SEEK: i64 = -1;
 
 thread_local! {
     static LAST_ERROR: RefCell<CString> = RefCell::new(CString::default());
@@ -46,14 +50,42 @@ fn set_last_error(msg: impl Into<String>) {
     LAST_ERROR.with(|e| *e.borrow_mut() = c);
 }
 
-struct Voice {
-    stop: Arc<std::sync::atomic::AtomicBool>,
+/// Controls shared between a voice's playback thread and the C ABI.
+#[derive(Clone)]
+struct VoiceShared {
+    stop: Arc<AtomicBool>,
+    paused: Arc<AtomicBool>,
     state: Arc<AtomicU8>,
     error: Arc<Mutex<Option<String>>>,
     // Linear gain stored as f32 bits; read by the playback thread per chunk.
     volume: Arc<AtomicU32>,
     // When set, the playback thread restarts from the beginning at end of audio.
-    looping: Arc<std::sync::atomic::AtomicBool>,
+    looping: Arc<AtomicBool>,
+    // Pending seek target in frames, or NO_SEEK when none is pending.
+    seek_request: Arc<AtomicI64>,
+    // Current playback position in frames.
+    position: Arc<AtomicU64>,
+}
+
+impl VoiceShared {
+    fn new(looping: bool) -> VoiceShared {
+        VoiceShared {
+            stop: Arc::new(AtomicBool::new(false)),
+            paused: Arc::new(AtomicBool::new(false)),
+            state: Arc::new(AtomicU8::new(STATE_PLAYING)),
+            error: Arc::new(Mutex::new(None)),
+            volume: Arc::new(AtomicU32::new(1.0f32.to_bits())),
+            looping: Arc::new(AtomicBool::new(looping)),
+            seek_request: Arc::new(AtomicI64::new(NO_SEEK)),
+            position: Arc::new(AtomicU64::new(0)),
+        }
+    }
+}
+
+struct Voice {
+    shared: VoiceShared,
+    rate: u32,
+    total_frames: u64,
     handle: Option<JoinHandle<()>>,
 }
 
@@ -81,29 +113,19 @@ impl Player {
 
     fn spawn(&self, audio: DecodedAudio, looping: bool) -> u64 {
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
-        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let state = Arc::new(AtomicU8::new(STATE_PLAYING));
-        let error = Arc::new(Mutex::new(None));
-        let volume = Arc::new(AtomicU32::new(1.0f32.to_bits()));
-        let looping = Arc::new(std::sync::atomic::AtomicBool::new(looping));
+        let shared = VoiceShared::new(looping);
+        let rate = audio.rate;
+        let channels = audio.channels.max(1) as usize;
+        let total_frames = (audio.samples.len() / channels) as u64;
 
-        let handle = self.start_thread(
-            audio,
-            stop.clone(),
-            state.clone(),
-            error.clone(),
-            volume.clone(),
-            looping.clone(),
-        );
+        let handle = self.start_thread(audio, shared.clone());
 
         self.voices.lock().unwrap().insert(
             id,
             Voice {
-                stop,
-                state,
-                error,
-                volume,
-                looping,
+                shared,
+                rate,
+                total_frames,
                 handle: Some(handle),
             },
         );
@@ -111,104 +133,93 @@ impl Player {
     }
 
     #[cfg(target_os = "linux")]
-    fn start_thread(
-        &self,
-        audio: DecodedAudio,
-        stop: Arc<std::sync::atomic::AtomicBool>,
-        state: Arc<AtomicU8>,
-        error: Arc<Mutex<Option<String>>>,
-        volume: Arc<AtomicU32>,
-        looping: Arc<std::sync::atomic::AtomicBool>,
-    ) -> JoinHandle<()> {
+    fn start_thread(&self, audio: DecodedAudio, shared: VoiceShared) -> JoinHandle<()> {
         let alsa = self.alsa.clone();
         std::thread::spawn(move || {
             let sink = alsa::PcmPlayback::open(&alsa, audio.channels, audio.rate);
-            run_voice(sink, audio, &stop, &state, &error, &volume, &looping);
+            run_voice(sink, audio, &shared);
         })
     }
 
     #[cfg(target_os = "android")]
-    fn start_thread(
-        &self,
-        audio: DecodedAudio,
-        stop: Arc<std::sync::atomic::AtomicBool>,
-        state: Arc<AtomicU8>,
-        error: Arc<Mutex<Option<String>>>,
-        volume: Arc<AtomicU32>,
-        looping: Arc<std::sync::atomic::AtomicBool>,
-    ) -> JoinHandle<()> {
+    fn start_thread(&self, audio: DecodedAudio, shared: VoiceShared) -> JoinHandle<()> {
         let aaudio = self.aaudio.clone();
         std::thread::spawn(move || {
             let sink = aaudio::AaudioPlayback::open(&aaudio, audio.channels, audio.rate);
-            run_voice(sink, audio, &stop, &state, &error, &volume, &looping);
+            run_voice(sink, audio, &shared);
         })
     }
 
     #[cfg(not(any(target_os = "linux", target_os = "android")))]
-    fn start_thread(
-        &self,
-        _audio: DecodedAudio,
-        _stop: Arc<std::sync::atomic::AtomicBool>,
-        state: Arc<AtomicU8>,
-        error: Arc<Mutex<Option<String>>>,
-        _volume: Arc<AtomicU32>,
-        _looping: Arc<std::sync::atomic::AtomicBool>,
-    ) -> JoinHandle<()> {
+    fn start_thread(&self, _audio: DecodedAudio, shared: VoiceShared) -> JoinHandle<()> {
         std::thread::spawn(move || {
-            *error.lock().unwrap() =
+            *shared.error.lock().unwrap() =
                 Some("native playback is not implemented on this platform yet".into());
-            state.store(STATE_ERROR, Ordering::SeqCst);
+            shared.state.store(STATE_ERROR, Ordering::SeqCst);
         })
     }
 }
 
 /// Opens the result of a platform sink and, on success, runs the playback loop.
 #[cfg(any(target_os = "linux", target_os = "android"))]
-fn run_voice<S: PcmSink>(
-    sink: Result<S, String>,
-    audio: DecodedAudio,
-    stop: &std::sync::atomic::AtomicBool,
-    state: &AtomicU8,
-    error: &Mutex<Option<String>>,
-    volume: &AtomicU32,
-    looping: &std::sync::atomic::AtomicBool,
-) {
+fn run_voice<S: PcmSink>(sink: Result<S, String>, audio: DecodedAudio, sh: &VoiceShared) {
     let sink = match sink {
         Ok(s) => s,
         Err(e) => {
-            *error.lock().unwrap() = Some(e);
-            state.store(STATE_ERROR, Ordering::SeqCst);
+            *sh.error.lock().unwrap() = Some(e);
+            sh.state.store(STATE_ERROR, Ordering::SeqCst);
             return;
         }
     };
-    play_pcm(&sink, audio, stop, state, error, volume, looping);
+    play_pcm(&sink, audio, sh);
 }
 
 /// Platform-independent playback loop: chunks the samples, applies gain, honors
-/// stop/loop, and drains at the end.
+/// stop/pause/seek/loop, tracks position, and drains at the end.
 #[cfg(any(target_os = "linux", target_os = "android"))]
-fn play_pcm<S: PcmSink>(
-    pcm: &S,
-    audio: DecodedAudio,
-    stop: &std::sync::atomic::AtomicBool,
-    state: &AtomicU8,
-    error: &Mutex<Option<String>>,
-    volume: &AtomicU32,
-    looping: &std::sync::atomic::AtomicBool,
-) {
+fn play_pcm<S: PcmSink>(pcm: &S, audio: DecodedAudio, sh: &VoiceShared) {
+    let channels = audio.channels.max(1) as usize;
     // ~2048 frames per write keeps stop latency under ~50 ms at 44.1 kHz.
-    let chunk = audio.channels as usize * 2048;
+    let chunk = channels * 2048;
     let mut scaled: Vec<i16> = Vec::new();
-    let mut i = 0;
-    while i < audio.samples.len() {
-        if stop.load(Ordering::SeqCst) {
-            state.store(STATE_STOPPED, Ordering::SeqCst);
+    let mut i = 0usize;
+    loop {
+        if sh.stop.load(Ordering::SeqCst) {
+            sh.state.store(STATE_STOPPED, Ordering::SeqCst);
             return;
         }
+
+        // Honor a pending seek (frame index -> sample index).
+        let seek = sh.seek_request.swap(NO_SEEK, Ordering::SeqCst);
+        if seek >= 0 {
+            i = (seek as usize)
+                .saturating_mul(channels)
+                .min(audio.samples.len());
+            sh.position.store((i / channels) as u64, Ordering::SeqCst);
+        }
+
+        // While paused, emit nothing (the device underruns to silence and
+        // recovers on the next write) and poll for resume/stop/seek.
+        if sh.paused.load(Ordering::SeqCst) {
+            sh.state.store(STATE_PAUSED, Ordering::SeqCst);
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            continue;
+        }
+
+        if i >= audio.samples.len() {
+            if sh.looping.load(Ordering::SeqCst) {
+                i = 0;
+                sh.position.store(0, Ordering::SeqCst);
+                continue;
+            }
+            break;
+        }
+
+        sh.state.store(STATE_PLAYING, Ordering::SeqCst);
         let end = (i + chunk).min(audio.samples.len());
         let slice = &audio.samples[i..end];
         // Apply linear gain unless it is effectively unity.
-        let gain = f32::from_bits(volume.load(Ordering::Relaxed));
+        let gain = f32::from_bits(sh.volume.load(Ordering::Relaxed));
         let to_write: &[i16] = if (gain - 1.0).abs() < 1e-4 {
             slice
         } else {
@@ -221,23 +232,20 @@ fn play_pcm<S: PcmSink>(
             &scaled
         };
         if let Err(e) = pcm.write(to_write) {
-            *error.lock().unwrap() = Some(e);
-            state.store(STATE_ERROR, Ordering::SeqCst);
+            *sh.error.lock().unwrap() = Some(e);
+            sh.state.store(STATE_ERROR, Ordering::SeqCst);
             return;
         }
         i = end;
-        // Loop back to the start instead of finishing when looping is on.
-        if i >= audio.samples.len() && looping.load(Ordering::SeqCst) {
-            i = 0;
-        }
+        sh.position.store((i / channels) as u64, Ordering::SeqCst);
     }
     pcm.drain();
-    let final_state = if stop.load(Ordering::SeqCst) {
+    let final_state = if sh.stop.load(Ordering::SeqCst) {
         STATE_STOPPED
     } else {
         STATE_COMPLETED
     };
-    state.store(final_state, Ordering::SeqCst);
+    sh.state.store(final_state, Ordering::SeqCst);
 }
 
 // ---------------------------------------------------------------------------
@@ -265,7 +273,7 @@ pub extern "C" fn sound_player_free(player: *mut Player) {
     let player = unsafe { Box::from_raw(player) };
     let mut voices = player.voices.lock().unwrap();
     for (_, mut voice) in voices.drain() {
-        voice.stop.store(true, Ordering::SeqCst);
+        voice.shared.stop.store(true, Ordering::SeqCst);
         if let Some(h) = voice.handle.take() {
             let _ = h.join();
         }
@@ -362,7 +370,7 @@ pub extern "C" fn sound_voice_state(player: *mut Player, id: u64) -> c_int {
     };
     let voices = player.voices.lock().unwrap();
     match voices.get(&id) {
-        Some(v) => v.state.load(Ordering::SeqCst) as c_int,
+        Some(v) => v.shared.state.load(Ordering::SeqCst) as c_int,
         None => -1,
     }
 }
@@ -376,9 +384,98 @@ pub extern "C" fn sound_stop(player: *mut Player, id: u64) -> c_int {
     let voices = player.voices.lock().unwrap();
     match voices.get(&id) {
         Some(v) => {
-            v.stop.store(true, Ordering::SeqCst);
+            v.shared.stop.store(true, Ordering::SeqCst);
             0
         }
+        None => -1,
+    }
+}
+
+/// Pauses a voice. Returns 0 on success, -1 if the id is unknown.
+#[no_mangle]
+pub extern "C" fn sound_pause(player: *mut Player, id: u64) -> c_int {
+    let Some(player) = with_player(player) else {
+        return -1;
+    };
+    let voices = player.voices.lock().unwrap();
+    match voices.get(&id) {
+        Some(v) => {
+            v.shared.paused.store(true, Ordering::SeqCst);
+            0
+        }
+        None => -1,
+    }
+}
+
+/// Resumes a paused voice. Returns 0 on success, -1 if the id is unknown.
+#[no_mangle]
+pub extern "C" fn sound_resume(player: *mut Player, id: u64) -> c_int {
+    let Some(player) = with_player(player) else {
+        return -1;
+    };
+    let voices = player.voices.lock().unwrap();
+    match voices.get(&id) {
+        Some(v) => {
+            v.shared.paused.store(false, Ordering::SeqCst);
+            0
+        }
+        None => -1,
+    }
+}
+
+/// Seeks a voice to `frame`. Returns 0 on success, -1 if the id is unknown.
+#[no_mangle]
+pub extern "C" fn sound_seek(player: *mut Player, id: u64, frame: u64) -> c_int {
+    let Some(player) = with_player(player) else {
+        return -1;
+    };
+    let voices = player.voices.lock().unwrap();
+    match voices.get(&id) {
+        Some(v) => {
+            v.shared
+                .seek_request
+                .store(frame.min(i64::MAX as u64) as i64, Ordering::SeqCst);
+            0
+        }
+        None => -1,
+    }
+}
+
+/// Returns a voice's current position in frames, or -1 if the id is unknown.
+#[no_mangle]
+pub extern "C" fn sound_position(player: *mut Player, id: u64) -> i64 {
+    let Some(player) = with_player(player) else {
+        return -1;
+    };
+    let voices = player.voices.lock().unwrap();
+    match voices.get(&id) {
+        Some(v) => v.shared.position.load(Ordering::SeqCst) as i64,
+        None => -1,
+    }
+}
+
+/// Returns a voice's total length in frames, or -1 if the id is unknown.
+#[no_mangle]
+pub extern "C" fn sound_duration_frames(player: *mut Player, id: u64) -> i64 {
+    let Some(player) = with_player(player) else {
+        return -1;
+    };
+    let voices = player.voices.lock().unwrap();
+    match voices.get(&id) {
+        Some(v) => v.total_frames as i64,
+        None => -1,
+    }
+}
+
+/// Returns a voice's sample rate in Hz, or -1 if the id is unknown.
+#[no_mangle]
+pub extern "C" fn sound_sample_rate(player: *mut Player, id: u64) -> c_int {
+    let Some(player) = with_player(player) else {
+        return -1;
+    };
+    let voices = player.voices.lock().unwrap();
+    match voices.get(&id) {
+        Some(v) => v.rate as c_int,
         None => -1,
     }
 }
@@ -393,7 +490,9 @@ pub extern "C" fn sound_set_volume(player: *mut Player, id: u64, volume: f32) ->
     let voices = player.voices.lock().unwrap();
     match voices.get(&id) {
         Some(v) => {
-            v.volume.store(volume.max(0.0).to_bits(), Ordering::Relaxed);
+            v.shared
+                .volume
+                .store(volume.max(0.0).to_bits(), Ordering::Relaxed);
             0
         }
         None => -1,
@@ -410,7 +509,7 @@ pub extern "C" fn sound_set_loop(player: *mut Player, id: u64, looping: c_int) -
     let voices = player.voices.lock().unwrap();
     match voices.get(&id) {
         Some(v) => {
-            v.looping.store(looping != 0, Ordering::SeqCst);
+            v.shared.looping.store(looping != 0, Ordering::SeqCst);
             0
         }
         None => -1,
@@ -426,7 +525,7 @@ pub extern "C" fn sound_voice_free(player: *mut Player, id: u64) -> c_int {
     let voice = player.voices.lock().unwrap().remove(&id);
     match voice {
         Some(mut v) => {
-            v.stop.store(true, Ordering::SeqCst);
+            v.shared.stop.store(true, Ordering::SeqCst);
             if let Some(h) = v.handle.take() {
                 let _ = h.join();
             }
@@ -443,7 +542,7 @@ pub extern "C" fn sound_voice_error(player: *mut Player, id: u64) -> *const c_ch
     if let Some(player) = with_player(player) {
         let voices = player.voices.lock().unwrap();
         if let Some(v) = voices.get(&id) {
-            if let Some(msg) = v.error.lock().unwrap().clone() {
+            if let Some(msg) = v.shared.error.lock().unwrap().clone() {
                 set_last_error(msg);
             } else {
                 set_last_error("");

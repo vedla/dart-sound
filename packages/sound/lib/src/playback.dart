@@ -6,6 +6,9 @@ enum PlaybackState {
   /// Currently producing audio.
   playing,
 
+  /// Paused; can be resumed from the current position.
+  paused,
+
   /// Stopped before reaching the end.
   stopped,
 
@@ -40,6 +43,22 @@ abstract class Playback {
   /// Enables or disables looping. Turning looping off lets the current pass
   /// finish and then completes naturally.
   Future<void> setLooping(bool looping);
+
+  /// Pauses playback, keeping the current position. Safe to call when not
+  /// playing.
+  Future<void> pause();
+
+  /// Resumes playback from the paused position. Safe to call when not paused.
+  Future<void> resume();
+
+  /// Seeks to [position] (clamped to the audio's length).
+  Future<void> seek(Duration position);
+
+  /// The current playback position.
+  Duration get position;
+
+  /// The total length of the audio, or `null` if not known.
+  Duration? get duration;
 
   /// Completes when playback reaches the end on its own.
   ///

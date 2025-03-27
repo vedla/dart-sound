@@ -73,6 +73,11 @@ class WebAudioPlayback implements Playback {
   PlaybackState _state = PlaybackState.idle;
   Completer<void>? _completer;
 
+  // Offset into the buffer (seconds) the current source started from, and the
+  // AudioContext time when it started - together they give the position.
+  double _offset = 0;
+  double _startedAt = 0;
+
   @override
   PlaybackState get state => _state;
 
@@ -85,9 +90,16 @@ class WebAudioPlayback implements Playback {
   @override
   Future<void> play() async {
     if (_state == PlaybackState.disposed) return;
-    _stopSource();
     _completer = Completer<void>();
+    _startSource(0);
+    _state = PlaybackState.playing;
+  }
 
+  /// (Re)starts a buffer source playing from [offset] seconds.
+  void _startSource(double offset) {
+    _stopSource();
+    _offset = offset.clamp(0, _buffer.duration);
+    _startedAt = _context.currentTime.toDouble();
     final source = web.AudioBufferSourceNode(_context)
       ..buffer = _buffer
       ..loop = _looping;
@@ -98,9 +110,8 @@ class WebAudioPlayback implements Playback {
         if (!(_completer?.isCompleted ?? true)) _completer!.complete();
       }
     }.toJS;
-    source.start();
+    source.start(0, _offset);
     _source = source;
-    _state = PlaybackState.playing;
   }
 
   void _stopSource() {
@@ -132,6 +143,45 @@ class WebAudioPlayback implements Playback {
     _looping = looping;
     _source?.loop = looping;
   }
+
+  @override
+  Future<void> pause() async {
+    if (_state != PlaybackState.playing) return;
+    final at = position; // capture before stopping
+    _stopSource();
+    _offset = at.inMicroseconds / 1e6;
+    _state = PlaybackState.paused;
+  }
+
+  @override
+  Future<void> resume() async {
+    if (_state != PlaybackState.paused) return;
+    _startSource(_offset);
+    _state = PlaybackState.playing;
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    final offset = (position.inMicroseconds / 1e6).clamp(0, _buffer.duration);
+    if (_state == PlaybackState.playing) {
+      _startSource(offset.toDouble());
+    } else {
+      _offset = offset.toDouble();
+    }
+  }
+
+  @override
+  Duration get position {
+    final seconds = _state == PlaybackState.playing
+        ? _offset + (_context.currentTime.toDouble() - _startedAt)
+        : _offset;
+    final clamped = seconds.clamp(0, _buffer.duration);
+    return Duration(microseconds: (clamped * 1e6).round());
+  }
+
+  @override
+  Duration? get duration =>
+      Duration(microseconds: (_buffer.duration * 1e6).round());
 
   @override
   Future<void> dispose() async {

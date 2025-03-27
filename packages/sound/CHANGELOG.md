@@ -10,4 +10,5 @@
 - Native decoding of WAV/MP3/OGG-Vorbis/FLAC via the pure-Rust `symphonia`
   (no system dependencies); the browser decodes natively on web.
 - Per-voice volume (`setVolume`, `volume:`) and looping (`setLooping`, `loop:`).
+- Pause/resume, seek, and `position`/`duration` query.
 - CLI example and a web example.

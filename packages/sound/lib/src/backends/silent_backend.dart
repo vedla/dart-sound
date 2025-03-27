@@ -91,6 +91,36 @@ class SilentPlayback implements Playback {
   Future<void> setLooping(bool looping) async {}
 
   @override
+  Future<void> pause() async {
+    if (_state == PlaybackState.playing) {
+      _timer?.cancel();
+      _state = PlaybackState.paused;
+    }
+  }
+
+  @override
+  Future<void> resume() async {
+    if (_state == PlaybackState.paused) {
+      _state = PlaybackState.playing;
+      if (_duration == Duration.zero) {
+        _finish();
+      } else {
+        _timer = Timer(_duration, _finish);
+      }
+    }
+  }
+
+  @override
+  Future<void> seek(Duration position) async {}
+
+  @override
+  Duration get position => Duration.zero;
+
+  @override
+  Duration? get duration =>
+      _duration == Duration.zero ? null : _duration;
+
+  @override
   Future<void> dispose() async {
     _timer?.cancel();
     _state = PlaybackState.disposed;

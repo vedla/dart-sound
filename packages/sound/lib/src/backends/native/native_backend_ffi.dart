@@ -31,6 +31,10 @@ typedef _SetVolumeNative = Int32 Function(Pointer<Void>, Uint64, Float);
 typedef _SetVolume = int Function(Pointer<Void>, int, double);
 typedef _SetLoopNative = Int32 Function(Pointer<Void>, Uint64, Int32);
 typedef _SetLoop = int Function(Pointer<Void>, int, int);
+typedef _SeekNative = Int32 Function(Pointer<Void>, Uint64, Uint64);
+typedef _Seek = int Function(Pointer<Void>, int, int);
+typedef _I64QueryNative = Int64 Function(Pointer<Void>, Uint64);
+typedef _I64Query = int Function(Pointer<Void>, int);
 typedef _VoiceErrorNative = Pointer<Utf8> Function(Pointer<Void>, Uint64);
 typedef _VoiceError = Pointer<Utf8> Function(Pointer<Void>, int);
 typedef _LastErrorNative = Pointer<Utf8> Function();
@@ -41,6 +45,7 @@ const int _statePlaying = 0;
 const int _stateCompleted = 1;
 const int _stateStopped = 2;
 const int _stateError = 3;
+const int _statePaused = 4;
 
 /// Locates and opens the `sound_cli` shared library.
 class NativeLibrary {
@@ -108,6 +113,15 @@ class _Bindings {
         setVolume =
             lib.lookupFunction<_SetVolumeNative, _SetVolume>('sound_set_volume'),
         setLoop = lib.lookupFunction<_SetLoopNative, _SetLoop>('sound_set_loop'),
+        pause = lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_pause'),
+        resume = lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_resume'),
+        seek = lib.lookupFunction<_SeekNative, _Seek>('sound_seek'),
+        position =
+            lib.lookupFunction<_I64QueryNative, _I64Query>('sound_position'),
+        durationFrames = lib
+            .lookupFunction<_I64QueryNative, _I64Query>('sound_duration_frames'),
+        sampleRate =
+            lib.lookupFunction<_VoiceStateNative, _VoiceState>('sound_sample_rate'),
         voiceFree =
             lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_voice_free'),
         voiceError =
@@ -123,6 +137,12 @@ class _Bindings {
   final _VoiceOp stop;
   final _SetVolume setVolume;
   final _SetLoop setLoop;
+  final _VoiceOp pause;
+  final _VoiceOp resume;
+  final _Seek seek;
+  final _I64Query position;
+  final _I64Query durationFrames;
+  final _VoiceState sampleRate;
   final _VoiceOp voiceFree;
   final _VoiceError voiceError;
   final _LastError lastError;
@@ -201,6 +221,8 @@ class FfiPlayback implements Playback {
   double _volume;
   bool _looping;
   int _voiceId = 0;
+  int _rate = 0;
+  int _durationFrames = 0;
   PlaybackState _state = PlaybackState.idle;
   Timer? _poll;
   Completer<void>? _completer;
@@ -228,6 +250,8 @@ class FfiPlayback implements Playback {
       throw PlaybackException('playback failed: ${_backend._lastError()}');
     }
     if (_volume != 1.0) _b.setVolume(_player, _voiceId, _volume);
+    _rate = _b.sampleRate(_player, _voiceId);
+    _durationFrames = _b.durationFrames(_player, _voiceId);
     _state = PlaybackState.playing;
     _poll = Timer.periodic(const Duration(milliseconds: 50), (_) => _checkState());
   }
@@ -262,7 +286,9 @@ class FfiPlayback implements Playback {
     final native = _b.voiceState(_player, _voiceId);
     switch (native) {
       case _statePlaying:
-        return;
+        _state = PlaybackState.playing;
+      case _statePaused:
+        _state = PlaybackState.paused;
       case _stateCompleted:
         _finish(PlaybackState.completed, complete: true);
       case _stateStopped:
@@ -307,6 +333,44 @@ class FfiPlayback implements Playback {
   Future<void> setLooping(bool looping) async {
     _looping = looping;
     if (_voiceId != 0) _b.setLoop(_player, _voiceId, looping ? 1 : 0);
+  }
+
+  @override
+  Future<void> pause() async {
+    if (_voiceId != 0) {
+      _b.pause(_player, _voiceId);
+      _state = PlaybackState.paused;
+    }
+  }
+
+  @override
+  Future<void> resume() async {
+    if (_voiceId != 0) {
+      _b.resume(_player, _voiceId);
+      _state = PlaybackState.playing;
+    }
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    if (_voiceId != 0 && _rate > 0) {
+      final frame = position.inMicroseconds * _rate ~/ 1000000;
+      _b.seek(_player, _voiceId, frame < 0 ? 0 : frame);
+    }
+  }
+
+  @override
+  Duration get position {
+    if (_voiceId == 0 || _rate <= 0) return Duration.zero;
+    final frames = _b.position(_player, _voiceId);
+    if (frames < 0) return Duration.zero;
+    return Duration(microseconds: frames * 1000000 ~/ _rate);
+  }
+
+  @override
+  Duration? get duration {
+    if (_durationFrames <= 0 || _rate <= 0) return null;
+    return Duration(microseconds: _durationFrames * 1000000 ~/ _rate);
   }
 
   void _freeVoice() {

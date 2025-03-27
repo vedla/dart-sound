@@ -135,6 +135,53 @@ void main() {
       }
     });
 
+    test('reports duration and a non-zero advancing position', () async {
+      Sound.registerBackend(FfiBackend(), makeActive: true);
+      final pb = await Sound.playBytes(
+        buildSineWav(sampleRate: 44100, milliseconds: 1500),
+        format: 'wav',
+      );
+      expect(pb.duration, isNotNull);
+      expect((pb.duration!.inMilliseconds - 1500).abs(), lessThan(60));
+      // Allow for stream-open latency before the first frames are written.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(pb.position, greaterThan(Duration.zero));
+      await pb.stop();
+      await pb.dispose();
+    });
+
+    test('pause holds position, resume continues to completion', () async {
+      Sound.registerBackend(FfiBackend(), makeActive: true);
+      final pb = await Sound.playBytes(
+        buildSineWav(sampleRate: 44100, milliseconds: 900),
+        format: 'wav',
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 150));
+      await pb.pause();
+      expect(pb.state, PlaybackState.paused);
+      // Let any in-flight write land, then confirm position is frozen.
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      final p1 = pb.position;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect((pb.position - p1).inMilliseconds.abs(), lessThan(30));
+      await pb.resume();
+      await pb.onComplete.timeout(const Duration(seconds: 5));
+      expect(pb.state, PlaybackState.completed);
+      await pb.dispose();
+    });
+
+    test('seek near the end finishes quickly', () async {
+      Sound.registerBackend(FfiBackend(), makeActive: true);
+      final pb = await Sound.playBytes(
+        buildSineWav(milliseconds: 4000),
+        format: 'wav',
+      );
+      await pb.seek(const Duration(milliseconds: 3900));
+      await pb.onComplete.timeout(const Duration(seconds: 2));
+      expect(pb.state, PlaybackState.completed);
+      await pb.dispose();
+    });
+
     test('stop ends playback early', () async {
       Sound.registerBackend(FfiBackend(), makeActive: true);
       final playback = await Sound.playBytes(
