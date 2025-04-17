@@ -5,6 +5,11 @@
 //! id that can be polled, stopped, and freed. Concurrent voices are mixed by
 //! the system audio server (PipeWire/PulseAudio/dmix on Linux).
 
+// The exported functions take the opaque `*mut Player` returned by
+// `sound_player_new`; the caller is responsible for its validity. That makes
+// the raw-pointer derefs expected here rather than a smell.
+#![allow(clippy::not_unsafe_ptr_arg_deref)]
+
 mod decode;
 
 #[cfg(target_os = "linux")]
