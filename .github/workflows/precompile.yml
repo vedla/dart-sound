@@ -1,0 +1,72 @@
+name: Precompile binaries
+
+# Builds signed prebuilt sound_cli libraries and uploads them to a
+# `precompiled_<crate-hash>` GitHub release, so consumers can build
+# sound_flutter without a Rust toolchain. cargokit verifies each download
+# against the public_key in native/sound_cli/cargokit.yaml.
+#
+# Requires two repository secrets:
+#   CARGOKIT_PRIVATE_KEY — the hex private key from `build_tool gen-key`
+#   (GITHUB_TOKEN is provided automatically).
+#
+# Only the platforms with an implemented backend are built here (Linux x86_64
+# and the Android ABIs). Add macOS/Windows/iOS once those backends land — each
+# needs its own runner (macos-latest for Apple, windows-latest for Windows).
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+env:
+  REPO: ManyMath/sound
+  BUILD_TOOL: packages/sound_flutter/cargokit/build_tool
+
+jobs:
+  linux:
+    name: Precompile (Linux x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - run: dart pub get
+        working-directory: ${{ env.BUILD_TOOL }}
+      - name: Precompile
+        env:
+          PRIVATE_KEY: ${{ secrets.CARGOKIT_PRIVATE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dart run "$BUILD_TOOL/bin/build_tool.dart" precompile-binaries -v \
+            --manifest-dir="$GITHUB_WORKSPACE/native/sound_cli" \
+            --repository="$REPO" \
+            --target x86_64-unknown-linux-gnu
+
+  android:
+    name: Precompile (Android ABIs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: nttld/setup-ndk@v1
+        id: ndk
+        with:
+          ndk-version: r26d
+      - run: dart pub get
+        working-directory: ${{ env.BUILD_TOOL }}
+      - name: Precompile
+        env:
+          PRIVATE_KEY: ${{ secrets.CARGOKIT_PRIVATE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          dart run "$BUILD_TOOL/bin/build_tool.dart" precompile-binaries -v \
+            --manifest-dir="$GITHUB_WORKSPACE/native/sound_cli" \
+            --repository="$REPO" \
+            --android-sdk-location="$ANDROID_SDK_ROOT" \
+            --android-ndk-version="${{ steps.ndk.outputs.ndk-version }}" \
+            --android-min-sdk-version=26 \
+            --target aarch64-linux-android \
+            --target armv7-linux-androideabi \
+            --target x86_64-linux-android \
+            --target i686-linux-android

@@ -1,0 +1,10 @@
+# cargokit configuration for the sound_cli crate.
+#
+# Precompiled binaries let consumers build sound_flutter without Rust: cargokit
+# downloads a signed prebuilt library matching the crate hash instead of running
+# cargo. The public key below verifies those downloads; the matching private key
+# signs them in CI (stored as the CARGOKIT_PRIVATE_KEY secret - see
+# .github/workflows/precompile.yml). Generated with `build_tool gen-key`.
+precompiled_binaries:
+  url_prefix: https://github.com/ManyMath/sound/releases/download/precompiled_
+  public_key: 65afd3925450a7ceca86ab3145d10d6cbe29e6de8a1631961c584223857e0e27
