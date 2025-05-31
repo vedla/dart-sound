@@ -28,9 +28,12 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test
-      # The crate must also compile for Android (AAudio backend).
+      # The crate must also compile for Android (AAudio backend)...
       - run: rustup target add aarch64-linux-android
       - run: cargo check --target aarch64-linux-android
+      # ...and for Windows, where it currently falls back to a stub backend.
+      - run: rustup target add x86_64-pc-windows-gnu
+      - run: cargo check --target x86_64-pc-windows-gnu
 
   analyze-test:
     name: Analyze & test (Dart/Flutter)
