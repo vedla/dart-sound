@@ -25,6 +25,8 @@ symphonia = { version = "0.5", default-features = false, features = [
 [dev-dependencies]
 # Used by tests/examples to synthesize WAV input.
 hound = "3.5"
+# Pure-Rust FLAC encoder, to round-trip a real compressed format in tests.
+flacenc = "0.4"
 
 # Load the system audio library at runtime (libasound.so.2 on Linux,
 # libaaudio.so on Android) so we never need its dev headers/pkg-config at build
