@@ -45,6 +45,8 @@ jobs:
           channel: stable
       # The pub workspace includes Flutter packages, so resolve with Flutter.
       - run: flutter pub get
+      - name: Check formatting
+        run: dart format --output none --set-exit-if-changed packages/sound packages/sound_flutter/lib packages/sound_flutter/example/lib
       - run: dart analyze packages/sound
       - run: flutter analyze packages/sound_flutter
       # FFI playback tests self-skip when the native lib isn't built (no audio

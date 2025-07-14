@@ -23,9 +23,11 @@ class _ProbeBackend extends SoundBackend {
   Future<void> initialize() async => initializeCalls++;
 
   @override
-  Future<Playback> load(SoundSource source,
-          {double volume = 1.0, bool loop = false}) async =>
-      SilentPlayback(Duration.zero);
+  Future<Playback> load(
+    SoundSource source, {
+    double volume = 1.0,
+    bool loop = false,
+  }) async => SilentPlayback(Duration.zero);
 
   @override
   Future<void> dispose() async {}
@@ -51,7 +53,8 @@ void main() {
 
     test('skips unavailable backends', () {
       Sound.registerBackend(
-          _ProbeBackend('unavailable', priority: 9999, available: false));
+        _ProbeBackend('unavailable', priority: 9999, available: false),
+      );
       Sound.registerBackend(_ProbeBackend('usable', priority: 9000));
       expect(Sound.backend.name, 'usable');
     });
@@ -75,8 +78,10 @@ void main() {
       Sound.registerBackend(_ProbeBackend('b', priority: 2));
       Sound.useBackend('a');
       expect(Sound.backend.name, 'a');
-      expect(() => Sound.useBackend('nope'),
-          throwsA(isA<NoBackendAvailableException>()));
+      expect(
+        () => Sound.useBackend('nope'),
+        throwsA(isA<NoBackendAvailableException>()),
+      );
     });
   });
 
@@ -84,8 +89,10 @@ void main() {
     test('play loads and starts via the active backend', () async {
       final silent = SilentBackend();
       Sound.registerBackend(silent, makeActive: true);
-      final playback =
-          await Sound.playBytes(Uint8List.fromList([1, 2, 3]), format: 'wav');
+      final playback = await Sound.playBytes(
+        Uint8List.fromList([1, 2, 3]),
+        format: 'wav',
+      );
       expect(silent.loaded, hasLength(1));
       expect(silent.loaded.single, isA<BytesSource>());
       await playback.onComplete;

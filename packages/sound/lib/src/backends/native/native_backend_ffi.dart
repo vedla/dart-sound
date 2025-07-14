@@ -17,10 +17,10 @@ SoundBackend? createNativeBackend() => FfiBackend();
 typedef _PlayerNewNative = Pointer<Void> Function();
 typedef _PlayerFreeNative = Void Function(Pointer<Void>);
 typedef _PlayerFree = void Function(Pointer<Void>);
-typedef _PlayBytesNative = Uint64 Function(
-    Pointer<Void>, Pointer<Uint8>, Size, Pointer<Utf8>, Int32);
-typedef _PlayBytes = int Function(
-    Pointer<Void>, Pointer<Uint8>, int, Pointer<Utf8>, int);
+typedef _PlayBytesNative =
+    Uint64 Function(Pointer<Void>, Pointer<Uint8>, Size, Pointer<Utf8>, Int32);
+typedef _PlayBytes =
+    int Function(Pointer<Void>, Pointer<Uint8>, int, Pointer<Utf8>, int);
 typedef _PlayFileNative = Uint64 Function(Pointer<Void>, Pointer<Utf8>, Int32);
 typedef _PlayFile = int Function(Pointer<Void>, Pointer<Utf8>, int);
 typedef _VoiceStateNative = Int32 Function(Pointer<Void>, Uint64);
@@ -56,10 +56,10 @@ class NativeLibrary {
   static bool _attempted = false;
 
   static String get _fileName => switch (Platform.operatingSystem) {
-        'windows' => 'sound_cli.dll',
-        'macos' || 'ios' => 'libsound_cli.dylib',
-        _ => 'libsound_cli.so',
-      };
+    'windows' => 'sound_cli.dll',
+    'macos' || 'ios' => 'libsound_cli.dylib',
+    _ => 'libsound_cli.so',
+  };
 
   /// Opens the library, caching the result. Returns `null` if it cannot be
   /// found/loaded - never throws.
@@ -99,35 +99,47 @@ class NativeLibrary {
 /// Bound entry points into the native library.
 class _Bindings {
   _Bindings(DynamicLibrary lib)
-      : playerNew = lib
-            .lookupFunction<_PlayerNewNative, _PlayerNewNative>('sound_player_new'),
-        playerFree = lib
-            .lookupFunction<_PlayerFreeNative, _PlayerFree>('sound_player_free'),
-        playBytes =
-            lib.lookupFunction<_PlayBytesNative, _PlayBytes>('sound_play_bytes'),
-        playFile =
-            lib.lookupFunction<_PlayFileNative, _PlayFile>('sound_play_file'),
-        voiceState =
-            lib.lookupFunction<_VoiceStateNative, _VoiceState>('sound_voice_state'),
-        stop = lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_stop'),
-        setVolume =
-            lib.lookupFunction<_SetVolumeNative, _SetVolume>('sound_set_volume'),
-        setLoop = lib.lookupFunction<_SetLoopNative, _SetLoop>('sound_set_loop'),
-        pause = lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_pause'),
-        resume = lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_resume'),
-        seek = lib.lookupFunction<_SeekNative, _Seek>('sound_seek'),
-        position =
-            lib.lookupFunction<_I64QueryNative, _I64Query>('sound_position'),
-        durationFrames = lib
-            .lookupFunction<_I64QueryNative, _I64Query>('sound_duration_frames'),
-        sampleRate =
-            lib.lookupFunction<_VoiceStateNative, _VoiceState>('sound_sample_rate'),
-        voiceFree =
-            lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_voice_free'),
-        voiceError =
-            lib.lookupFunction<_VoiceErrorNative, _VoiceError>('sound_voice_error'),
-        lastError =
-            lib.lookupFunction<_LastErrorNative, _LastError>('sound_last_error');
+    : playerNew = lib.lookupFunction<_PlayerNewNative, _PlayerNewNative>(
+        'sound_player_new',
+      ),
+      playerFree = lib.lookupFunction<_PlayerFreeNative, _PlayerFree>(
+        'sound_player_free',
+      ),
+      playBytes = lib.lookupFunction<_PlayBytesNative, _PlayBytes>(
+        'sound_play_bytes',
+      ),
+      playFile = lib.lookupFunction<_PlayFileNative, _PlayFile>(
+        'sound_play_file',
+      ),
+      voiceState = lib.lookupFunction<_VoiceStateNative, _VoiceState>(
+        'sound_voice_state',
+      ),
+      stop = lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_stop'),
+      setVolume = lib.lookupFunction<_SetVolumeNative, _SetVolume>(
+        'sound_set_volume',
+      ),
+      setLoop = lib.lookupFunction<_SetLoopNative, _SetLoop>('sound_set_loop'),
+      pause = lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_pause'),
+      resume = lib.lookupFunction<_VoiceOpNative, _VoiceOp>('sound_resume'),
+      seek = lib.lookupFunction<_SeekNative, _Seek>('sound_seek'),
+      position = lib.lookupFunction<_I64QueryNative, _I64Query>(
+        'sound_position',
+      ),
+      durationFrames = lib.lookupFunction<_I64QueryNative, _I64Query>(
+        'sound_duration_frames',
+      ),
+      sampleRate = lib.lookupFunction<_VoiceStateNative, _VoiceState>(
+        'sound_sample_rate',
+      ),
+      voiceFree = lib.lookupFunction<_VoiceOpNative, _VoiceOp>(
+        'sound_voice_free',
+      ),
+      voiceError = lib.lookupFunction<_VoiceErrorNative, _VoiceError>(
+        'sound_voice_error',
+      ),
+      lastError = lib.lookupFunction<_LastErrorNative, _LastError>(
+        'sound_last_error',
+      );
 
   final Pointer<Void> Function() playerNew;
   final _PlayerFree playerFree;
@@ -180,7 +192,8 @@ class FfiBackend extends SoundBackend {
   Future<void> initialize() async {
     if (!isAvailable) {
       throw const NoBackendAvailableException(
-          'The sound_cli library could not be loaded.');
+        'The sound_cli library could not be loaded.',
+      );
     }
     if (_player != nullptr) return;
     _player = _bindings!.playerNew();
@@ -195,8 +208,11 @@ class FfiBackend extends SoundBackend {
   }
 
   @override
-  Future<Playback> load(SoundSource source,
-      {double volume = 1.0, bool loop = false}) async {
+  Future<Playback> load(
+    SoundSource source, {
+    double volume = 1.0,
+    bool loop = false,
+  }) async {
     if (_player == nullptr) await initialize();
     return FfiPlayback._(this, source, volume, loop);
   }
@@ -253,7 +269,10 @@ class FfiPlayback implements Playback {
     _rate = _b.sampleRate(_player, _voiceId);
     _durationFrames = _b.durationFrames(_player, _voiceId);
     _state = PlaybackState.playing;
-    _poll = Timer.periodic(const Duration(milliseconds: 50), (_) => _checkState());
+    _poll = Timer.periodic(
+      const Duration(milliseconds: 50),
+      (_) => _checkState(),
+    );
   }
 
   int _start() {
@@ -297,7 +316,10 @@ class FfiPlayback implements Playback {
         final msg = _b.voiceError(_player, _voiceId);
         _finish(PlaybackState.stopped, complete: false);
         _completer?.completeError(
-            PlaybackException(msg == nullptr ? 'playback error' : msg.toDartString()));
+          PlaybackException(
+            msg == nullptr ? 'playback error' : msg.toDartString(),
+          ),
+        );
       default: // -1 unknown
         _finish(PlaybackState.stopped, complete: false);
     }

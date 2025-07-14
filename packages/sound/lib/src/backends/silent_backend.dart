@@ -31,8 +31,11 @@ class SilentBackend extends SoundBackend {
   Future<void> initialize() async {}
 
   @override
-  Future<Playback> load(SoundSource source,
-      {double volume = 1.0, bool loop = false}) async {
+  Future<Playback> load(
+    SoundSource source, {
+    double volume = 1.0,
+    bool loop = false,
+  }) async {
     loaded.add(source);
     return SilentPlayback(simulatedDuration);
   }
@@ -117,8 +120,7 @@ class SilentPlayback implements Playback {
   Duration get position => Duration.zero;
 
   @override
-  Duration? get duration =>
-      _duration == Duration.zero ? null : _duration;
+  Duration? get duration => _duration == Duration.zero ? null : _duration;
 
   @override
   Future<void> dispose() async {

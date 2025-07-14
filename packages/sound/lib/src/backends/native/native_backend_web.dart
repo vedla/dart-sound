@@ -35,13 +35,17 @@ class WebAudioBackend extends SoundBackend {
   }
 
   @override
-  Future<Playback> load(SoundSource source,
-      {double volume = 1.0, bool loop = false}) async {
+  Future<Playback> load(
+    SoundSource source, {
+    double volume = 1.0,
+    bool loop = false,
+  }) async {
     await initialize();
     final bytes = switch (source) {
       BytesSource(:final bytes) => bytes,
       FileSource() => throw const UnsupportedSourceException(
-          'FileSource is not supported on the web; pass bytes instead.'),
+        'FileSource is not supported on the web; pass bytes instead.',
+      ),
     };
     // decodeAudioData detaches its input, so hand it a private copy.
     final copy = Uint8List.fromList(bytes);
@@ -59,7 +63,7 @@ class WebAudioBackend extends SoundBackend {
 /// A single WebAudio voice backed by a decoded [web.AudioBuffer].
 class WebAudioPlayback implements Playback {
   WebAudioPlayback(this._context, this._buffer, double volume, this._looping)
-      : _gain = _context.createGain() {
+    : _gain = _context.createGain() {
     _gain.gain.value = volume;
     _gain.connect(_context.destination);
   }
