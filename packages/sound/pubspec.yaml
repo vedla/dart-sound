@@ -5,6 +5,12 @@ description: >-
 version: 0.0.1
 publish_to: none
 repository: https://github.com/ManyMath/sound
+issue_tracker: https://github.com/ManyMath/sound/issues
+topics:
+  - audio
+  - sound
+  - playback
+  - ffi
 
 environment:
   sdk: ^3.10.0
