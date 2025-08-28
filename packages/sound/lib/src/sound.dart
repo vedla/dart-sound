@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:http/http.dart' as http;
+
 import 'backends/native/native_backend.dart';
 import 'backends/silent_backend.dart';
 import 'exceptions.dart';
@@ -138,6 +140,55 @@ class Sound {
     volume: volume,
     loop: loop,
   );
+
+  /// Fetches [url] over HTTP and loads it (without starting). Works on every
+  /// platform, including the web (where [FileSource] does not).
+  static Future<Playback> loadUrl(
+    String url, {
+    double volume = 1.0,
+    bool loop = false,
+  }) async {
+    final bytes = await _fetch(url);
+    return load(
+      SoundSource.bytes(bytes, format: _extensionOf(url)),
+      volume: volume,
+      loop: loop,
+    );
+  }
+
+  /// Fetches [url] over HTTP and starts playing it.
+  static Future<Playback> playUrl(
+    String url, {
+    double volume = 1.0,
+    bool loop = false,
+  }) async {
+    final playback = await loadUrl(url, volume: volume, loop: loop);
+    await playback.play();
+    return playback;
+  }
+
+  static Future<Uint8List> _fetch(String url) async {
+    final Uri uri;
+    try {
+      uri = Uri.parse(url);
+    } on FormatException catch (e) {
+      throw SoundException('invalid URL "$url": ${e.message}');
+    }
+    final response = await http.get(uri);
+    if (response.statusCode != 200) {
+      throw SoundException('failed to fetch $url: HTTP ${response.statusCode}');
+    }
+    return response.bodyBytes;
+  }
+
+  /// The lowercase file extension of a URL/path, or `null` if there is none.
+  static String? _extensionOf(String url) {
+    final path = Uri.tryParse(url)?.path ?? url;
+    final dot = path.lastIndexOf('.');
+    final slash = path.lastIndexOf('/');
+    if (dot < 0 || dot < slash || dot == path.length - 1) return null;
+    return path.substring(dot + 1).toLowerCase();
+  }
 
   /// Disposes the active backend and clears selection/registry.
   ///

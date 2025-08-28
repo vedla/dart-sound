@@ -1,6 +1,7 @@
 @TestOn('vm')
 library;
 
+import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -188,6 +189,37 @@ void main() {
         await pb.onComplete.timeout(const Duration(seconds: 2));
         expect(pb.state, PlaybackState.completed);
         await pb.dispose();
+      });
+
+      test('playUrl fetches over HTTP and plays', () async {
+        Sound.registerBackend(FfiBackend(), makeActive: true);
+        final wav = buildSineWav(milliseconds: 120);
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        server.listen((req) {
+          req.response
+            ..headers.contentType = ContentType('audio', 'wav')
+            ..add(wav);
+          req.response.close();
+        });
+        addTearDown(() => server.close(force: true));
+
+        final url = 'http://${server.address.host}:${server.port}/tone.wav';
+        final pb = await Sound.playUrl(url);
+        await pb.onComplete.timeout(const Duration(seconds: 5));
+        expect(pb.state, PlaybackState.completed);
+        await pb.dispose();
+      });
+
+      test('playUrl surfaces a clear error on HTTP failure', () async {
+        Sound.registerBackend(FfiBackend(), makeActive: true);
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        server.listen((req) {
+          req.response.statusCode = 404;
+          req.response.close();
+        });
+        addTearDown(() => server.close(force: true));
+        final url = 'http://${server.address.host}:${server.port}/missing.wav';
+        await expectLater(Sound.playUrl(url), throwsA(isA<SoundException>()));
       });
 
       test('stop ends playback early', () async {
