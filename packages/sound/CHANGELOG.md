@@ -12,4 +12,5 @@
 - Per-voice volume (`setVolume`, `volume:`) and looping (`setLooping`, `loop:`).
 - Pause/resume, seek, and `position`/`duration` query.
 - `Sound.playUrl`/`loadUrl` to fetch and play audio over HTTP (all platforms).
+- `SoundFade` extension: `fade`, `fadeIn`, `fadeOut` volume ramps.
 - CLI example and a web example.
