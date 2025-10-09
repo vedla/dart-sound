@@ -4,3 +4,5 @@
   via cargokit and bundles it. Re-exports the `sound` API and adds
   `SoundFlutter.ensureInitialized()`. Verified building/bundling/loading on
   Linux desktop.
+- `SoundFlutter.loadAsset`/`playAsset` to play bundled Flutter assets (with an
+  optional `package`/`bundle`).

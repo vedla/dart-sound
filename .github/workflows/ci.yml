@@ -52,6 +52,8 @@ jobs:
       # FFI playback tests self-skip when the native lib isn't built (no audio
       # device on CI); the API/registry unit tests always run.
       - run: dart test packages/sound
+      # Scope to the plugin's own tests (not the vendored cargokit tests).
+      - run: flutter test packages/sound_flutter/test
       # Verify the WebAudio backend compiles to JavaScript.
       - run: dart compile js packages/sound/example/web_main.dart -o /tmp/sound_web.js
 

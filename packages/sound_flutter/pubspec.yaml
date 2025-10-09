@@ -59,6 +59,10 @@ flutter:
       windows:
         ffiPlugin: true
 
+  # A small bundled tone used by the example/tests of asset playback.
+  assets:
+    - assets/test_tone.wav
+
   # To add assets to your plugin package, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
