@@ -108,6 +108,24 @@ void main() {
     });
   });
 
+  group('registry robustness', () {
+    test('registering the same instance twice is idempotent', () {
+      final probe = _ProbeBackend('probe', priority: 9000);
+      Sound.registerBackend(probe);
+      Sound.registerBackend(probe);
+      expect(Sound.backends.where((b) => b.name == 'probe'), hasLength(1));
+    });
+
+    test('reset clears the registry and re-seeds defaults', () async {
+      Sound.registerBackend(_ProbeBackend('probe', priority: 9000));
+      expect(Sound.backend.name, 'probe');
+      await Sound.reset();
+      // Defaults are re-seeded; the silent fallback is present again.
+      expect(Sound.backends.map((b) => b.name), contains('silent'));
+      expect(Sound.backends.map((b) => b.name), isNot(contains('probe')));
+    });
+  });
+
   group('SilentPlayback', () {
     test('stop before completion marks stopped', () async {
       final pb = SilentPlayback(const Duration(seconds: 10));
@@ -123,6 +141,24 @@ void main() {
       await pb.onComplete; // should not hang
       await pb.play();
       expect(pb.state, PlaybackState.disposed);
+    });
+
+    test('stop when idle and double dispose are safe', () async {
+      final pb = SilentPlayback(const Duration(seconds: 10));
+      await pb.stop(); // never played
+      expect(pb.state, isNot(PlaybackState.disposed));
+      await pb.dispose();
+      await pb.dispose(); // idempotent
+      expect(pb.state, PlaybackState.disposed);
+    });
+
+    test('pause/resume drive the paused state', () async {
+      final pb = SilentPlayback(const Duration(seconds: 10));
+      await pb.play();
+      await pb.pause();
+      expect(pb.state, PlaybackState.paused);
+      await pb.resume();
+      expect(pb.isPlaying, isTrue);
     });
   });
 }

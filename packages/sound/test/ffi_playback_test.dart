@@ -222,6 +222,33 @@ void main() {
         await expectLater(Sound.playUrl(url), throwsA(isA<SoundException>()));
       });
 
+      test('replaying the same handle restarts and completes', () async {
+        Sound.registerBackend(FfiBackend(), makeActive: true);
+        final pb = await Sound.playBytes(
+          buildSineWav(milliseconds: 80),
+          format: 'wav',
+        );
+        await pb.onComplete.timeout(const Duration(seconds: 5));
+        // Play the same handle again; it should restart and complete.
+        await pb.play();
+        expect(pb.isPlaying, isTrue);
+        await pb.onComplete.timeout(const Duration(seconds: 5));
+        expect(pb.state, PlaybackState.completed);
+        await pb.dispose();
+      });
+
+      test('dispose is idempotent and stop-after-dispose is safe', () async {
+        Sound.registerBackend(FfiBackend(), makeActive: true);
+        final pb = await Sound.playBytes(
+          buildSineWav(milliseconds: 80),
+          format: 'wav',
+        );
+        await pb.dispose();
+        await pb.dispose(); // no throw
+        await pb.stop(); // no throw
+        expect(pb.state, PlaybackState.disposed);
+      });
+
       test('stop ends playback early', () async {
         Sound.registerBackend(FfiBackend(), makeActive: true);
         final playback = await Sound.playBytes(
