@@ -27,6 +27,17 @@ Build the native library first: `cargo build --manifest-path native/sound_cli/Ca
 ## Status
 
 
-looping, concurrent voices) and the Flutter plugin builds/bundles on Linux
-desktop and Android; web compiles. Android/web runtime audio and macOS/Windows
-are in progress.
+end-to-end; macOS/Windows/iOS backends are pending their hosts.
+
+## Development
+
+Driven by [melos](https://melos.invertase.dev) (config lives in the root
+`pubspec.yaml`). After `dart pub get` (or `flutter pub get`):
+
+```sh
+dart run melos run native:build   # build the Rust shared library
+dart run melos run analyze        # analyze sound + sound_flutter
+dart run melos run format         # check Dart formatting (format:fix to apply)
+dart run melos run test           # Dart + Flutter tests
+dart run melos run native:test    # Rust crate tests
+```

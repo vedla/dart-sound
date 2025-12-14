@@ -13,3 +13,31 @@ workspace:
 
 dev_dependencies:
   melos: ^7.0.0
+
+# Melos 7 reads its configuration from here (the pub-workspace root). Scripts
+# mirror CI and use the right tool per package (dart vs flutter).
+melos:
+  name: sound
+  scripts:
+    analyze:
+      description: Analyze all packages.
+      run: dart analyze packages/sound && flutter analyze packages/sound_flutter
+    format:
+      description: Check Dart formatting.
+      run: >-
+        dart format --output none --set-exit-if-changed
+        packages/sound packages/sound_flutter/lib packages/sound_flutter/example/lib
+    format:fix:
+      description: Apply Dart formatting.
+      run: >-
+        dart format
+        packages/sound packages/sound_flutter/lib packages/sound_flutter/example/lib
+    test:
+      description: Run Dart and Flutter tests.
+      run: dart test packages/sound && flutter test packages/sound_flutter/test
+    native:build:
+      description: Build the sound_cli shared library (for CLI/dev use).
+      run: cargo build --manifest-path native/sound_cli/Cargo.toml
+    native:test:
+      description: Run the Rust crate tests.
+      run: cargo test --manifest-path native/sound_cli/Cargo.toml
