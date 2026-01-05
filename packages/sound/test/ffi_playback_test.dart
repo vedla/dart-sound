@@ -9,14 +9,16 @@ import 'package:sound/sound.dart';
 import 'package:sound/src/backends/native/native_backend_ffi.dart';
 import 'package:test/test.dart';
 
-/// Builds a valid 16-bit mono PCM WAV containing a short sine tone.
+/// Builds a valid 16-bit PCM WAV containing a short sine tone.
 Uint8List buildSineWav({
   int sampleRate = 8000,
   int milliseconds = 150,
   double freq = 440,
+  int channels = 1,
 }) {
   final frames = sampleRate * milliseconds ~/ 1000;
-  final dataBytes = frames * 2;
+  final dataBytes = frames * channels * 2;
+  final blockAlign = channels * 2;
   final out = BytesData(44 + dataBytes);
   out.setAscii('RIFF');
   out.u32(36 + dataBytes);
@@ -24,16 +26,18 @@ Uint8List buildSineWav({
   out.setAscii('fmt ');
   out.u32(16); // PCM fmt chunk size
   out.u16(1); // PCM
-  out.u16(1); // mono
+  out.u16(channels);
   out.u32(sampleRate);
-  out.u32(sampleRate * 2); // byte rate
-  out.u16(2); // block align
+  out.u32(sampleRate * blockAlign); // byte rate
+  out.u16(blockAlign);
   out.u16(16); // bits per sample
   out.setAscii('data');
   out.u32(dataBytes);
   for (var i = 0; i < frames; i++) {
     final v = (0.3 * sin(2 * pi * freq * i / sampleRate) * 32767).round();
-    out.i16(v);
+    for (var c = 0; c < channels; c++) {
+      out.i16(v);
+    }
   }
   return out.bytes;
 }
@@ -247,6 +251,17 @@ void main() {
         await pb.dispose(); // no throw
         await pb.stop(); // no throw
         expect(pb.state, PlaybackState.disposed);
+      });
+
+      test('plays a stereo WAV to completion', () async {
+        Sound.registerBackend(FfiBackend(), makeActive: true);
+        final pb = await Sound.playBytes(
+          buildSineWav(sampleRate: 44100, milliseconds: 150, channels: 2),
+          format: 'wav',
+        );
+        await pb.onComplete.timeout(const Duration(seconds: 5));
+        expect(pb.state, PlaybackState.completed);
+        await pb.dispose();
       });
 
       test('stop ends playback early', () async {
