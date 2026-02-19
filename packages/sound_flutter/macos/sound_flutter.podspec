@@ -14,6 +14,7 @@ A new Flutter FFI plugin project.
   s.author           = { 'Your Company' => 'email@example.com' }
 
   s.source           = { :path => '.' }
+  s.source_files     = 'Classes/**/*'
 
   # Build the shared `sound_cli` Rust crate (static lib) via cargokit and
   # force-link it into the plugin framework.

@@ -74,6 +74,20 @@ class NativeLibrary {
         // Try the next candidate.
       }
     }
+    // On Apple platforms the symbols are -force_load'd into the plugin's
+    // framework, which is loaded into the host process for us - so process()
+    // resolves them even when DynamicLibrary.open cannot find the framework
+    // path directly.
+    if (Platform.isMacOS || Platform.isIOS) {
+      try {
+        final p = DynamicLibrary.process();
+        // Probe one expected symbol so we know FFI can actually find it.
+        p.lookup<NativeFunction<_PlayerNewNative>>('sound_player_new');
+        _opened = p;
+      } on Object {
+        // Fall through.
+      }
+    }
     return _opened;
   }
 
@@ -83,6 +97,12 @@ class NativeLibrary {
     if (fromEnv != null && fromEnv.isNotEmpty) yield fromEnv;
     // Resolved via the OS loader path / Flutter app bundle.
     yield _fileName;
+    // On macOS/iOS the symbols are -force_load'd into the plugin's framework,
+    // so the lib name lookup above fails. The Flutter loader resolves the
+    // framework binary by its short path.
+    if (Platform.isMacOS || Platform.isIOS) {
+      yield 'sound_flutter.framework/sound_flutter';
+    }
     // Developer builds of the in-repo crate, searched from the cwd upward.
     var dir = Directory.current.absolute;
     for (var i = 0; i < 6; i++) {
