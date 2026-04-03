@@ -27,7 +27,7 @@ Build the native library first: `cargo build --manifest-path native/sound_cli/Ca
 ## Status
 
 
-end-to-end; macOS/Windows/iOS backends are pending their hosts.
+are verified end-to-end; the Windows backend is pending its host.
 
 ## Development
 
