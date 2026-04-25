@@ -23,8 +23,10 @@ function Resolve-Symlinks {
         }
 
         $item = Get-Item $realPath
-        if ($item.LinkTarget) {
-            $realPath = $item.LinkTarget.Replace('\', '/')
+        # LinkTarget exists in PowerShell 7+; Target in Windows PowerShell 5.x.
+        $link = if ($item.LinkTarget) { $item.LinkTarget } elseif ($item.Target) { $item.Target[0] } else { $null }
+        if ($link) {
+            $realPath = $link.Replace('\', '/')
         }
     }
     $realPath

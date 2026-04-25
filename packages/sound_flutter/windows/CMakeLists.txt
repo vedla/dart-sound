@@ -10,8 +10,6 @@ project(${PROJECT_NAME} LANGUAGES CXX)
 
 include("${CMAKE_CURRENT_SOURCE_DIR}/../cargokit/cmake/cargokit.cmake")
 
-# The 4th argument names an exported C symbol to force-link the import lib on
-# Windows so the linker does not drop the DLL.
 apply_cargokit(${PROJECT_NAME} ../../../native/sound_cli sound_cli sound_player_new)
 
 set(sound_flutter_bundled_libraries

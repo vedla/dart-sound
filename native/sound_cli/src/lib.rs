@@ -21,6 +21,9 @@ mod aaudio;
 #[cfg(any(target_os = "macos", target_os = "ios"))]
 mod coreaudio;
 
+#[cfg(target_os = "windows")]
+mod winmm;
+
 /// A platform audio output that accepts interleaved S16LE frames.
 pub(crate) trait PcmSink {
     /// Writes one interleaved chunk, blocking until accepted.
@@ -107,6 +110,8 @@ pub struct Player {
     aaudio: Arc<aaudio::Aaudio>,
     #[cfg(any(target_os = "macos", target_os = "ios"))]
     coreaudio: Arc<coreaudio::CoreAudio>,
+    #[cfg(target_os = "windows")]
+    winmm: Arc<winmm::WinMM>,
 }
 
 impl Player {
@@ -120,6 +125,8 @@ impl Player {
             aaudio: Arc::new(aaudio::Aaudio::load()?),
             #[cfg(any(target_os = "macos", target_os = "ios"))]
             coreaudio: Arc::new(coreaudio::CoreAudio::load()?),
+            #[cfg(target_os = "windows")]
+            winmm: Arc::new(winmm::WinMM::load()?),
         })
     }
 
@@ -171,11 +178,21 @@ impl Player {
         })
     }
 
+    #[cfg(target_os = "windows")]
+    fn start_thread(&self, audio: DecodedAudio, shared: VoiceShared) -> JoinHandle<()> {
+        let wmm = self.winmm.clone();
+        std::thread::spawn(move || {
+            let sink = winmm::WinMMPlayback::open(&wmm, audio.channels, audio.rate);
+            run_voice(sink, audio, &shared);
+        })
+    }
+
     #[cfg(not(any(
         target_os = "linux",
         target_os = "android",
         target_os = "macos",
-        target_os = "ios"
+        target_os = "ios",
+        target_os = "windows"
     )))]
     fn start_thread(&self, _audio: DecodedAudio, shared: VoiceShared) -> JoinHandle<()> {
         std::thread::spawn(move || {
@@ -187,7 +204,13 @@ impl Player {
 }
 
 /// Opens the result of a platform sink and, on success, runs the playback loop.
-#[cfg(any(target_os = "linux", target_os = "android", target_os = "macos", target_os = "ios"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "android",
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "windows"
+))]
 fn run_voice<S: PcmSink>(sink: Result<S, String>, audio: DecodedAudio, sh: &VoiceShared) {
     let sink = match sink {
         Ok(s) => s,
@@ -202,7 +225,13 @@ fn run_voice<S: PcmSink>(sink: Result<S, String>, audio: DecodedAudio, sh: &Voic
 
 /// Platform-independent playback loop: chunks the samples, applies gain, honors
 /// stop/pause/seek/loop, tracks position, and drains at the end.
-#[cfg(any(target_os = "linux", target_os = "android", target_os = "macos", target_os = "ios"))]
+#[cfg(any(
+    target_os = "linux",
+    target_os = "android",
+    target_os = "macos",
+    target_os = "ios",
+    target_os = "windows"
+))]
 fn play_pcm<S: PcmSink>(pcm: &S, audio: DecodedAudio, sh: &VoiceShared) {
     let channels = audio.channels.max(1) as usize;
     // ~2048 frames per write keeps stop latency under ~50 ms at 44.1 kHz.
