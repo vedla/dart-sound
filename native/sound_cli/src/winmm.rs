@@ -42,14 +42,8 @@ struct WaveHdr {
     reserved: usize,
 }
 
-type FnWaveOutOpen = unsafe extern "system" fn(
-    *mut HWaveOut,
-    u32,
-    *const WaveFormatEx,
-    usize,
-    usize,
-    u32,
-) -> u32;
+type FnWaveOutOpen =
+    unsafe extern "system" fn(*mut HWaveOut, u32, *const WaveFormatEx, usize, usize, u32) -> u32;
 type FnWaveOutClose = unsafe extern "system" fn(HWaveOut) -> u32;
 type FnWaveOutReset = unsafe extern "system" fn(HWaveOut) -> u32;
 type FnWaveOutPrepareHeader = unsafe extern "system" fn(HWaveOut, *mut WaveHdr, u32) -> u32;
@@ -72,8 +66,8 @@ unsafe impl Sync for WinMM {}
 impl WinMM {
     pub fn load() -> Result<WinMM, String> {
         unsafe {
-            let lib = Library::new("winmm.dll")
-                .map_err(|e| format!("failed to load winmm.dll: {e}"))?;
+            let lib =
+                Library::new("winmm.dll").map_err(|e| format!("failed to load winmm.dll: {e}"))?;
             macro_rules! sym {
                 ($name:literal) => {
                     *lib.get($name).map_err(|e| {
@@ -125,14 +119,7 @@ impl<'a> WinMMPlayback<'a> {
         };
         let mut handle: HWaveOut = std::ptr::null_mut();
         unsafe {
-            let rc = (wmm.wave_out_open)(
-                &mut handle,
-                WAVE_MAPPER,
-                &wfx,
-                0,
-                0,
-                CALLBACK_NULL,
-            );
+            let rc = (wmm.wave_out_open)(&mut handle, WAVE_MAPPER, &wfx, 0, 0, CALLBACK_NULL);
             if rc != MMSYSERR_NOERROR {
                 return Err(format!("waveOutOpen failed: error {rc}"));
             }
@@ -181,9 +168,8 @@ impl<'a> WinMMPlayback<'a> {
 
 impl PcmSink for WinMMPlayback<'_> {
     fn write(&self, samples: &[i16]) -> Result<(), String> {
-        let bytes: &[u8] = unsafe {
-            std::slice::from_raw_parts(samples.as_ptr() as *const u8, samples.len() * 2)
-        };
+        let bytes: &[u8] =
+            unsafe { std::slice::from_raw_parts(samples.as_ptr() as *const u8, samples.len() * 2) };
         let buf_bytes = FRAMES_PER_BUFFER * self.channels as usize * 2;
         // Safety: PcmSink::write is only called from a single playback thread.
         let ring = unsafe { &mut *self.ring.get() };
