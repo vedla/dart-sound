@@ -11,7 +11,7 @@ import 'sound_source.dart';
 
 /// Entry point for playing audio.
 ///
-/// `sound` keeps a registry of [SoundBackend]s and picks the best available one
+/// `sound_dart` keeps a registry of [SoundBackend]s and picks the best available one
 /// for the current environment (highest [SoundBackend.priority] among those
 /// whose [SoundBackend.isAvailable] is true). Apps can register extra backends
 /// or pin a specific one.
@@ -28,7 +28,7 @@ class Sound {
   static SoundBackend? _active;
   static bool _defaultsRegistered = false;
 
-  /// Registers the backends that ship with `sound`.
+  /// Registers the backends that ship with `sound_dart`.
   ///
   /// Backends from outside packages (e.g. sound_flutter) call
   /// [registerBackend] themselves; this only seeds the always-present floor.

@@ -1,17 +1,17 @@
-// Plays audio from the command line using `sound` (pure Dart, no Flutter).
+// Plays audio from the command line using `sound_dart` (pure Dart, no Flutter).
 //
 // Build the native library first:
 //   cargo build --manifest-path native/sound_cli/Cargo.toml
 // then, from the repo root:
-//   dart run packages/sound/example/sound_example.dart           # a 440 Hz tone
-//   dart run packages/sound/example/sound_example.dart chime.wav # a WAV file
+//   dart run packages/sound_dart/example/sound_example.dart           # a 440 Hz tone
+//   dart run packages/sound_dart/example/sound_example.dart chime.wav # a WAV file
 //
 // If the library is elsewhere, point to it with SOUND_DART_LIB=/path/to/lib.
 
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:sound/sound.dart';
+import 'package:sound_dart/sound_dart.dart';
 
 Future<void> main(List<String> args) async {
   print('Active backend: ${Sound.backend.name}');

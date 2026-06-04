@@ -1,11 +1,11 @@
 # sound_flutter
 
-Flutter integration for [`sound`](../sound) - cross-platform audio with **no
-system dependencies** for your users to install.
+Flutter integration for [`sound_dart`](../sound_dart) - cross-platform audio
+with **no system dependencies** for your users to install.
 
 This package builds the shared `sound_cli` Rust crate automatically (via
 [cargokit](https://github.com/ManyMath/cargokit)) and bundles it with your app,
-then re-exports the full `sound` API.
+then re-exports the full `sound_dart` API.
 
 ```dart
 import 'package:sound_flutter/sound_flutter.dart';

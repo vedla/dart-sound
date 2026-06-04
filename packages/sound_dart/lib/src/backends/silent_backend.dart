@@ -6,7 +6,7 @@ import '../sound_source.dart';
 
 /// A backend that produces no audio.
 ///
-/// It is the lowest-priority fallback so that `sound` never crashes in
+/// It is the lowest-priority fallback so that `sound_dart` never crashes in
 /// environments without an audio device (CI, headless servers). It is also a
 /// convenient test double: every loaded source is recorded in [loaded].
 class SilentBackend extends SoundBackend {

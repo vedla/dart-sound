@@ -5,8 +5,8 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:sound/sound.dart';
-import 'package:sound/src/backends/native/native_backend_ffi.dart';
+import 'package:sound_dart/sound_dart.dart';
+import 'package:sound_dart/src/backends/native/native_backend_ffi.dart';
 import 'package:test/test.dart';
 
 /// Builds a valid 16-bit PCM WAV containing a short sine tone.

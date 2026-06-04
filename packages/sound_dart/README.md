@@ -1,4 +1,4 @@
-# `sound`
+# `sound_dart`
 
 Cross-platform sound playback for Dart and Flutter with the goal of no system 
 dependencies that need to be installed.  Pure Dart (works in CLI tools) with 

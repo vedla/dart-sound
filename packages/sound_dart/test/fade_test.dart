@@ -1,4 +1,4 @@
-import 'package:sound/sound.dart';
+import 'package:sound_dart/sound_dart.dart';
 import 'package:test/test.dart';
 
 /// A [Playback] that records every volume set, for testing fade ramps without

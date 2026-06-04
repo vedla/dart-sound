@@ -1,9 +1,9 @@
 /// Cross-platform sound playback for Dart and Flutter.
 ///
-/// `sound` is pure Dart and has no Flutter dependency, so it works in CLI
-/// tools as well as Flutter apps. Native playback is reached over FFI; see
-/// [SoundBackend] for the pluggable backend contract and [Sound] for the
-/// entry point.
+/// `sound_dart` is pure Dart and has no Flutter dependency, so it works in
+/// CLI tools as well as Flutter apps. Native playback is reached over FFI;
+/// see [SoundBackend] for the pluggable backend contract and [Sound] for
+/// the entry point.
 library;
 
 export 'src/backends/silent_backend.dart';

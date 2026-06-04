@@ -1,7 +1,8 @@
-/// Flutter integration for the `sound` package.
+/// Flutter integration for the `sound_dart` package.
 ///
 /// This package contributes the native `sound_cli` library to your Flutter
-/// app (built automatically via cargokit) and re-exports the full `sound` API.
+/// app (built automatically via cargokit) and re-exports the full
+/// `sound_dart` API.
 /// In most cases you only need the re-exported [Sound] entry point:
 ///
 /// ```dart
@@ -13,15 +14,15 @@
 library;
 
 import 'package:flutter/services.dart' show AssetBundle, rootBundle;
-import 'package:sound/sound.dart';
+import 'package:sound_dart/sound_dart.dart';
 
-export 'package:sound/sound.dart';
+export 'package:sound_dart/sound_dart.dart';
 
-/// Flutter-side conveniences over the `sound` registry.
+/// Flutter-side conveniences over the `sound_dart` registry.
 abstract final class SoundFlutter {
   /// Ensures a playback backend is selected and ready.
   ///
-  /// On native platforms `sound` already auto-registers the FFI backend that
+  /// On native platforms `sound_dart` already auto-registers the FFI backend that
   /// loads the bundled `sound_cli` library; this initializes it eagerly so
   /// the first [Sound.play] has no setup latency, and surfaces load errors
   /// early. Returns the name of the active backend (e.g. `ffi`, or `silent`

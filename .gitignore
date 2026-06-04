@@ -3,9 +3,9 @@
 .packages
 
 # Compiled web example output (build artifact)
-packages/sound/example/web/main.dart.js
-packages/sound/example/web/main.dart.js.deps
-packages/sound/example/web/main.dart.js.map
+packages/sound_dart/example/web/main.dart.js
+packages/sound_dart/example/web/main.dart.js.deps
+packages/sound_dart/example/web/main.dart.js.map
 build/
 .flutter-plugins
 .flutter-plugins-dependencies

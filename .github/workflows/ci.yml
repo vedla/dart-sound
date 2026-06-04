@@ -46,16 +46,16 @@ jobs:
       # The pub workspace includes Flutter packages, so resolve with Flutter.
       - run: flutter pub get
       - name: Check formatting
-        run: dart format --output none --set-exit-if-changed packages/sound packages/sound_flutter/lib packages/sound_flutter/example/lib
-      - run: dart analyze packages/sound
+        run: dart format --output none --set-exit-if-changed packages/sound_dart packages/sound_flutter/lib packages/sound_flutter/example/lib
+      - run: dart analyze packages/sound_dart
       - run: flutter analyze packages/sound_flutter
       # FFI playback tests self-skip when the native lib isn't built (no audio
       # device on CI); the API/registry unit tests always run.
-      - run: dart test packages/sound
+      - run: dart test packages/sound_dart
       # Scope to the plugin's own tests (not the vendored cargokit tests).
       - run: flutter test packages/sound_flutter/test
       # Verify the WebAudio backend compiles to JavaScript.
-      - run: dart compile js packages/sound/example/web_main.dart -o /tmp/sound_web.js
+      - run: dart compile js packages/sound_dart/example/web_main.dart -o /tmp/sound_web.js
 
   build:
     name: Build example (${{ matrix.target }})

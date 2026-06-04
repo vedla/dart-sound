@@ -9,14 +9,14 @@ This is a [melos](https://melos.invertase.dev) monorepo:
 
 | Package | What it is |
 |---|---|
-| [`packages/sound`](packages/sound) | Pure Dart (no Flutter); works in CLI tools. Reaches native audio over `dart:ffi`, with a pluggable backend registry. |
-| [`packages/sound_flutter`](packages/sound_flutter) | Flutter plugin. Builds the native library automatically (via cargokit) and re-exports the `sound` API. |
+| [`packages/sound_dart`](packages/sound_dart) | Pure Dart (no Flutter); works in CLI tools. Reaches native audio over `dart:ffi`, with a pluggable backend registry. |
+| [`packages/sound_flutter`](packages/sound_flutter) | Flutter plugin. Builds the native library automatically (via cargokit) and re-exports the `sound_dart` API. |
 | [`native/sound_cli`](native/sound_cli) | Rust crate (the C ABI behind the FFI backend). Decodes WAV/MP3/OGG/FLAC and plays with no system deps - `dlopen`s `libasound.so.2` on Linux, `libaaudio.so` on Android. |
 
 ## Quick start (Dart CLI)
 
 ```dart
-import 'package:sound/sound.dart';
+import 'package:sound_dart/sound_dart.dart';
 
 final playback = await Sound.playFile('chime.wav', volume: 0.8);
 await playback.onComplete;
@@ -47,7 +47,7 @@ Driven by [melos](https://melos.invertase.dev) (config lives in the root
 
 ```sh
 dart run melos run native:build   # build the Rust shared library
-dart run melos run analyze        # analyze sound + sound_flutter
+dart run melos run analyze        # analyze sound_dart + sound_flutter
 dart run melos run format         # check Dart formatting (format:fix to apply)
 dart run melos run test           # Dart + Flutter tests
 dart run melos run native:test    # Rust crate tests

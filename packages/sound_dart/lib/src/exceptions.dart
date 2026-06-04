@@ -1,4 +1,4 @@
-/// Base class for all errors thrown by `sound`.
+/// Base class for all errors thrown by `sound_dart`.
 class SoundException implements Exception {
   const SoundException(this.message);
 

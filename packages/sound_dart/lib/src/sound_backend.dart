@@ -3,7 +3,7 @@ import 'sound_source.dart';
 
 /// A pluggable provider of sound capabilities for a given platform/technique.
 ///
-/// `sound` is deliberately backend-agnostic: Linux/macOS/Windows/CLI reach
+/// `sound_dart` is deliberately backend-agnostic: Linux/macOS/Windows/CLI reach
 /// native audio over FFI, Web uses WebAudio, and Flutter platforms may layer
 /// channel-based backends. Several backends can be registered at once; the
 /// active one is chosen by [isAvailable] and [priority] (see `Sound`).

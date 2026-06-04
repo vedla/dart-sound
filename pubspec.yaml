@@ -7,7 +7,7 @@ environment:
   sdk: ^3.10.0
 
 workspace:
-  - packages/sound
+  - packages/sound_dart
   - packages/sound_flutter
   - packages/sound_flutter/example
 
@@ -21,20 +21,20 @@ melos:
   scripts:
     analyze:
       description: Analyze all packages.
-      run: dart analyze packages/sound && flutter analyze packages/sound_flutter
+      run: dart analyze packages/sound_dart && flutter analyze packages/sound_flutter
     format:
       description: Check Dart formatting.
       run: >-
         dart format --output none --set-exit-if-changed
-        packages/sound packages/sound_flutter/lib packages/sound_flutter/example/lib
+        packages/sound_dart packages/sound_flutter/lib packages/sound_flutter/example/lib
     format:fix:
       description: Apply Dart formatting.
       run: >-
         dart format
-        packages/sound packages/sound_flutter/lib packages/sound_flutter/example/lib
+        packages/sound_dart packages/sound_flutter/lib packages/sound_flutter/example/lib
     test:
       description: Run Dart and Flutter tests.
-      run: dart test packages/sound && flutter test packages/sound_flutter/test
+      run: dart test packages/sound_dart && flutter test packages/sound_flutter/test
     native:build:
       description: Build the sound_cli shared library (for CLI/dev use).
       run: cargo build --manifest-path native/sound_cli/Cargo.toml

@@ -1,13 +1,13 @@
-// A minimal web entry point demonstrating `sound` in the browser, where the
-// WebAudio backend is selected automatically. Compile with:
-//   dart compile js packages/sound/example/web_main.dart -o /tmp/out.js
+// A minimal web entry point demonstrating `sound_dart` in the browser, where
+// the WebAudio backend is selected automatically. Compile with:
+//   dart compile js packages/sound_dart/example/web_main.dart -o /tmp/out.js
 // and host alongside an HTML page with a button that calls `playTone` (browsers
 // require a user gesture before audio can start).
 import 'dart:js_interop';
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'package:sound/sound.dart';
+import 'package:sound_dart/sound_dart.dart';
 import 'package:web/web.dart' as web;
 
 void main() {
