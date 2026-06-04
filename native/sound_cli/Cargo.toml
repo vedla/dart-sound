@@ -2,7 +2,7 @@
 name = "sound_cli"
 version = "0.0.1"
 edition = "2021"
-description = "Native audio playback for the `sound` Dart/Flutter package."
+description = "Native audio playback for CLI tools."
 license = "MIT"
 repository = "https://github.com/ManyMath/sound"
 

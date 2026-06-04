@@ -1,9 +1,8 @@
 name: sound
 description: >-
-  Cross-platform sound playback for Dart and Flutter with no system
-  dependencies. Pure Dart; reaches native audio via FFI.
+  Sound for Dart and Flutter with the goal of no additional system dependencies.
+  Dart (no Flutter dependency) with native audio from Rust via FFI.
 version: 0.0.1
-publish_to: none
 repository: https://github.com/ManyMath/sound
 issue_tracker: https://github.com/ManyMath/sound/issues
 topics:

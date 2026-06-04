@@ -1,9 +1,9 @@
 # sound
 
-Cross-platform sound playback for Dart and Flutter - with **no system
-dependencies** for your users to install. The only build-time requirement
-beyond Dart/Flutter is Rust, and eventually not even that (precompiled binaries
-via cargokit).
+Cross-platform sound playback for Dart and Flutter with the goal of no 
+additional system dependencies for users or devs to install.  The only build-
+time requirement beyond Dart/Flutter is Rust, and eventually that will be 
+obviated via precompiled binaries (TODO).
 
 This is a [melos](https://melos.invertase.dev) monorepo:
 
@@ -26,8 +26,19 @@ Build the native library first: `cargo build --manifest-path native/sound_cli/Ca
 
 ## Status
 
+| Host | Status |
+|---|---|
+| Android | Working |
+| Android Emulator | Working |
+| iOS | Working |
+| iOS Simulator | Working |
+| macOS | Working |
+| Ubuntu 24.04 | Working |
+| Web | Working |
+| Windows 11 | Working |
 
-are verified end-to-end; the Windows backend is pending its host.
+Android Emulator tested on macOS, Ubuntu 24.04, and Windows 11.
+Web tested on macOS in Chrome and Safari, Ubuntu 24.04 in Chrome and Firefox, and Windows 11 in Chrome and Edge.
 
 ## Development
 
