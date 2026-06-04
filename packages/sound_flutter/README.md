@@ -1,7 +1,7 @@
 # sound_flutter
 
-Flutter integration for [`sound_dart`](../sound_dart) - cross-platform audio
-with **no system dependencies** for your users to install.
+Flutter integration for [`sound_dart`](../sound_dart): cross-platform audio 
+with no system dependencies for users or devs to install.
 
 This package builds the shared `sound_cli` Rust crate automatically (via
 [cargokit](https://github.com/ManyMath/cargokit)) and bundles it with your app,
@@ -16,13 +16,13 @@ await playback.onComplete;
 ```
 
 Building requires Rust (`rustup`). To remove even that for consumers, the repo
-is set up for cargokit **precompiled binaries**:
+is set up for cargokit precompiled binaries:
 
 - `native/sound_cli/cargokit.yaml` holds the public signing key and the
   release URL prefix.
 - `.github/workflows/precompile.yml` builds and uploads signed binaries to
   `precompiled_<crate-hash>` releases on tag pushes. It needs a
-  `CARGOKIT_PRIVATE_KEY` repository secret - the hex private key printed by
+  `CARGOKIT_PRIVATE_KEY` repository secret: the hex private key printed by
   `dart run build_tool gen-key` (keep it secret; never commit it).
 
 Once a release exists, consuming builds download the matching signed binary
